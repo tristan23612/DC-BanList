@@ -29,9 +29,9 @@ function injectExportButton() {
     if (!leftContainer) {
         const viewtop = document.getElementById('viewtop');
         if (viewtop) {
-        // 모바일 메인 헤더 아래
-        leftContainer = document.createElement('div');
-        viewtop.insertAdjacentElement('afterend', leftContainer);
+            // 모바일 메인 헤더 아래
+            leftContainer = document.createElement('div');
+            viewtop.insertAdjacentElement('afterend', leftContainer);
         }
     }
     if (!leftContainer) return; // 못 찾으면 종료
@@ -65,6 +65,8 @@ function injectExportButton() {
     console.log('Gallscope: 차단목록 내보내기 버튼 삽입 완료.');
 }
 
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTp1ZNWGWABJtVSuljopVkW3LgA5WA4Xk8KNo7pSY342JkrsmIUYn0KsA5FOt2PcrL/exec'; // 실제 URL로 교체
+
 function exportBlockedList() {
     const gallId = galleryParser.galleryId;
     const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
@@ -85,11 +87,42 @@ function exportBlockedList() {
         },
         data: formData.toString(),
         onload: (res) => {
-            console.log('[Gallscope] 차단 목록 HTML:');
-            console.log(res.responseText);
+            console.log('[Gallscope] 차단 목록 HTML 수신 완료');
+            const blockedList = parseBlockList(res.responseText);
+            console.log('[Gallscope] 파싱된 차단 목록:', blockedList);
+
+            // Apps Script 웹앱에 데이터 전송
+            sendToGoogleSheet(blockedList);
         },
         onerror: (err) => {
             console.error('[Gallscope] 차단 목록 요청 실패:', err);
+        }
+    });
+}
+
+function sendToGoogleSheet(data) {
+    GM_xmlhttpRequest({
+        method: 'POST',
+        url: APPS_SCRIPT_URL,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        data: JSON.stringify(data),
+        onload: (res) => {
+            console.log('[Gallscope] Google 스프레드시트 업데이트 응답:', res.responseText);
+            try {
+                const response = JSON.parse(res.responseText);
+                if (response.status === 'success') {
+                    console.log('Google 스프레드시트 업데이트 성공');
+                } else {
+                    console.error('Google 스프레드시트 업데이트 실패:', response.message);
+                }
+            } catch (e) {
+                console.error('응답 파싱 실패', e);
+            }
+        },
+        onerror: (err) => {
+            console.error('Google 스프레드시트 요청 실패:', err);
         }
     });
 }
@@ -102,10 +135,10 @@ function parseBlockList(htmlText) {
     const parsedData = rows.map(row => {
         const cells = row.querySelectorAll('td');
         return {
-            type: cells[0]?.textContent?.trim(),
-            identifier: cells[1]?.textContent?.trim(),
-            reason: cells[2]?.textContent?.trim(),
             date: cells[3]?.textContent?.trim(),
+            nickname: cells[1]?.textContent?.trim(),  // identifier → nickname 으로 변경 가능
+            reason: cells[2]?.textContent?.trim(),
+            type: cells[0]?.textContent?.trim()
         };
     });
 
@@ -180,12 +213,12 @@ class PostParser {
 const isMobile = location.hostname === 'm.dcinside.com';
 
 const galleryParser = new PostParser();
-await galleryParser.init();
 
 (async () => {
     // --- Script Entry Point ---
 
     'use strict';
 
+    await galleryParser.init();
     injectExportButton();
 })();
