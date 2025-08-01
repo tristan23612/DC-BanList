@@ -23,7 +23,6 @@
 // @license          MIT
 // ==/UserScript==
 
-
 function injectExportButton() {
     let leftContainer = document.querySelector('.page_head .fl');
     if (!leftContainer) {
@@ -65,49 +64,99 @@ function injectExportButton() {
     console.log('Gallscope: 차단목록 내보내기 버튼 삽입 완료.');
 }
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTp1ZNWGWABJtVSuljopVkW3LgA5WA4Xk8KNo7pSY342JkrsmIUYn0KsA5FOt2PcrL/exec'; // 실제 URL로 교체
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyVXvHOuyQf1UkWze-PGwa2QLiButd1740ruVgtGhZphp1s-FbbTZRzjdx4vsuKn1VH/exec'; // 실제 URL로 교체
 
-function exportBlockedList() {
+async function exportBlockedList() {
     const gallId = galleryParser.galleryId;
     const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
+    const allBanRecords = [];
 
+    const MAX_TOTAL_PAGES = 1000;
+    const MULTI_PAGE_FETCH_CHUNK_SIZE = 5;
+    const MAX_EMPTY_PAGES_ALLOWED = 5;
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    let emptyPageCount = 0;
+
+    for (let i = 1; i <= MAX_TOTAL_PAGES; i += MULTI_PAGE_FETCH_CHUNK_SIZE) {
+        const batch = Array.from({ length: MULTI_PAGE_FETCH_CHUNK_SIZE }, (_, j) => i + j);
+
+        let results
+        try {
+            results = await Promise.all(batch.map(page => fetchBanPage(gallId, gallType, page)));
+        } catch (err) {
+            console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
+            continue; // 오류 발생 시 다음 배치로 넘어감
+        }
+
+        for (const result of results) {
+            if (result.status === 'error') {
+                console.warn(`[Gallscope] 페이지 ${result.page} 요청 실패: ${result.error}`);
+                continue;
+            }
+
+            if (result.parsed.length === 0) {
+                console.log(`[Gallscope] ${result.page}페이지 데이터 없음.`);
+                break; // 빈 페이지가 발견되면 루프 종료
+            }
+        }
+
+        await delay(200); // 배치 쿨타임
+    }
+
+    console.log('[Gallscope] 최종 차단 내역:', allBanRecords);
+    // sendToGoogleSheet(gallId, allBanRecords);
+}
+
+// 한 페이지 요청 및 파싱 함수
+async function fetchBanPage(gallId, gallType, page) {
     const formData = new URLSearchParams();
     formData.append('gall_id', gallId);
     formData.append('_GALLTYPE_', gallType);
     formData.append('type', 'public');
     formData.append('search', '');
-    formData.append('p', '1');
+    formData.append('p', page.toString());
 
-    GM_xmlhttpRequest({
-        method: 'POST',
-        url: 'https://gall.dcinside.com/ajax/minor_ajax/manage_report',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-        data: formData.toString(),
-        onload: (res) => {
-            console.log('[Gallscope] 차단 목록 HTML 수신 완료');
-            const blockedList = parseBlockList(res.responseText);
-            console.log('[Gallscope] 파싱된 차단 목록:', blockedList);
+    try {
+        const res = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: 'https://gall.dcinside.com/ajax/minor_ajax/manage_report',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                data: formData.toString(),
+                onload: resolve,
+                onerror: reject
+            });
+        });
 
-            // Apps Script 웹앱에 데이터 전송
-            sendToGoogleSheet(blockedList);
-        },
-        onerror: (err) => {
-            console.error('[Gallscope] 차단 목록 요청 실패:', err);
+        if (!res || res.status !== 200 || res.responseText.includes('<b>내역이 없습니다.</b>')) {
+            return { status: 'empty', page, parsed: [] };
         }
-    });
+
+        const parsed = parseBanList(res.responseText);
+        return { status: 'success', page, parsed };
+
+    } catch (err) {
+        return { status: 'error', page, error: err };
+    }
 }
 
-function sendToGoogleSheet(data) {
+function sendToGoogleSheet(gallId, blockedList) {
     GM_xmlhttpRequest({
         method: 'POST',
         url: APPS_SCRIPT_URL,
         headers: {
             'Content-Type': 'application/json'
         },
-        data: JSON.stringify(data),
+        data: JSON.stringify({
+            gallId: gallId,
+            data: blockedList,
+        }),
+
         onload: (res) => {
             console.log('[Gallscope] Google 스프레드시트 업데이트 응답:', res.responseText);
             try {
@@ -127,7 +176,7 @@ function sendToGoogleSheet(data) {
     });
 }
 
-function parseBlockList(htmlText) {
+function parseBanList(htmlText) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
 
@@ -135,10 +184,12 @@ function parseBlockList(htmlText) {
     const parsedData = rows.map(row => {
         const cells = row.querySelectorAll('td');
         return {
-            date: cells[3]?.textContent?.trim(),
-            nickname: cells[1]?.textContent?.trim(),  // identifier → nickname 으로 변경 가능
-            reason: cells[2]?.textContent?.trim(),
-            type: cells[0]?.textContent?.trim()
+            nickname: cells[1]?.textContent.replace(/\s+/g, ' ').trim(),
+            content: cells[2]?.textContent.replace(/\s+/g, ' ').trim(),
+            reason: cells[3]?.textContent.replace(/\s+/g, ' ').trim(),
+            duration: cells[4]?.textContent.replace(/\s+/g, ' ').trim(),
+            date: cells[5]?.textContent.replace(/\s+/g, ' ').trim(),
+            manager: cells[6]?.textContent.replace(/\s+/g, ' ').trim(),
         };
     });
 
@@ -211,8 +262,11 @@ class PostParser {
 }
 
 const isMobile = location.hostname === 'm.dcinside.com';
-
 const galleryParser = new PostParser();
+
+const MAX_PAGE = 500;
+const BATCH_SIZE = 5;
+const PAGE_DELAY_MS = 300;
 
 (async () => {
     // --- Script Entry Point ---
