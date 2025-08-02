@@ -32,31 +32,32 @@ function doPost(e) {
 
         Logger.log("갤ID: " + gallId);
         Logger.log("받은 데이터:", data);
+        Logger.log("데이터 길이:", data.length);
 
-        data.forEach(record => {
-            // 예: 날짜, 닉네임, 이유, 타입 순서대로 넣을 수 있음
-            sheet.appendRow([
-                record.nickname || '',
-                record.content || '',
-                record.reason || '',
-                record.duration || '',
-                record.date || '',
-                record.manager || '',
-            ]);
-        });
+        // 시트 맨 위에 삽입
+        sheet.insertRowsBefore(1, data.length);
 
-        const output = ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
+        // 배열 형태로 변환
+        const rows = data.map(record => [
+            record.nickname || '',
+            record.content || '',
+            record.reason || '',
+            record.duration || '',
+            record.date || '',
+            record.manager || ''
+        ]);
+
+        // 시트 (1,1) 위치부터 입력
+        sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+
+        return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
             .setMimeType(ContentService.MimeType.JSON);
 
-        return output;
-
     } catch (err) {
-        const output = ContentService.createTextOutput(JSON.stringify({
+        return ContentService.createTextOutput(JSON.stringify({
             status: 'error',
             message: err.message
         })).setMimeType(ContentService.MimeType.JSON);
-
-        return output;
     }
 }
 
