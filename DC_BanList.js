@@ -38,7 +38,6 @@ function injectExportButton() {
     // 2) 중복 방지
     if (document.getElementById('gallscopeExportBtnContainer')) return;
 
-    // 3) 버튼 컨테이너 생성
     const container = document.createElement('div');
     container.id = 'gallscopeExportBtnContainer';
     container.style.cssText = `
@@ -73,11 +72,8 @@ async function exportBlockedList() {
 
     const MAX_TOTAL_PAGES = 1000;
     const MULTI_PAGE_FETCH_CHUNK_SIZE = 5;
-    const MAX_EMPTY_PAGES_ALLOWED = 5;
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-    let emptyPageCount = 0;
 
     for (let i = 1; i <= MAX_TOTAL_PAGES; i += MULTI_PAGE_FETCH_CHUNK_SIZE) {
         const batch = Array.from({ length: MULTI_PAGE_FETCH_CHUNK_SIZE }, (_, j) => i + j);
@@ -109,7 +105,6 @@ async function exportBlockedList() {
     // sendToGoogleSheet(gallId, allBanRecords);
 }
 
-// 한 페이지 요청 및 파싱 함수
 async function fetchBanPage(gallId, gallType, page) {
     const formData = new URLSearchParams();
     formData.append('gall_id', gallId);
@@ -138,8 +133,8 @@ async function fetchBanPage(gallId, gallType, page) {
         }
 
         const parsed = parseBanList(res.responseText);
+        console.log(`[Gallscope] ${page}페이지 데이터 파싱 완료:`, parsed);
         return { status: 'success', page, parsed };
-
     } catch (err) {
         return { status: 'error', page, error: err };
     }
@@ -192,7 +187,7 @@ function parseBanList(htmlText) {
             manager: cells[6]?.textContent.replace(/\s+/g, ' ').trim(),
         };
     });
-
+    
     return parsedData;
 }
 
