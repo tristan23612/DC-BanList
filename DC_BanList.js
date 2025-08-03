@@ -138,7 +138,11 @@ class ModalManager {
         this.#uiManager.updateTheme();
     }
 
-    showExportBanListModal(preParsedRecords = []) {
+    hideExportBanListModal() {
+        if (this.#exportBanListModal) this.#exportBanListModal.style.display = 'none';
+    }
+
+    showExportBanListModal() {
         const modal = this.#getOrCreateExportBanListModal();
         const titleSpan = modal.querySelector('.modal-title > span');
         const contentDiv = modal.querySelector('.modal-content');
@@ -153,41 +157,100 @@ class ModalManager {
             modal.appendChild(footer);
         }
 
-        const storedSheetId = GM_getValue('spreadsheetId', '');
+        const storedSheetId = GM_getValue('spreadsheetId', '시트 ID를 입력해주세요.');
 
-        let currentState = 'confirm'; // confirm, parsing, parsed
-        let parsedRecords = preParsedRecords;
+        let currentStep = 'confirm'; // confirm, parsing, readyToUpload
+        let banList = [];
+        let resultMessage = ''
+        let sheetId = ''
 
         const updateContent = () => {
-            if (currentState === 'confirm') {
-                contentDiv.innerHTML = this.#uiManager.renderParseConfirmModalContent();
+            if (currentStep === 'confirm') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
+                });
                 footer.style.display = 'none';
-                contentDiv.querySelector('#parseConfirmBtn').onclick = async () => {
-                    currentState = 'parsing';
-                    updateContent();
 
-                    parsedRecords = await this.#eventHandlers.onStartParsing((progressMsg) => {
-                        contentDiv.innerHTML = `<p>${progressMsg}</p>`;
+                contentDiv.querySelector('#parseConfirmBtn').onclick = () => {
+                    currentStep = 'parsing'
+                    updateContent();
+                }
+
+                contentDiv.querySelector('#parseCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'parsing') {
+                const progressText = ''
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    progressText,
+                });
+
+                // 실제 파싱 작업 실행
+                this.#eventHandlers.onStartParsing((progressMsg) => {
+                    contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                        currentStep: 'parsing',
+                        progressText: progressMsg
                     });
-                    currentState = 'parsed';
+                }).then(result => {
+                    banList = result;
+                    currentStep = 'readyToUpload';
                     updateContent();
-                };
-            } else if (currentState === 'parsed') {
-                contentDiv.innerHTML = this.#uiManager.renderUploadConfirmModalContent();
+                }).catch(err => {
+                    console.error('[Gallscope] 수집 중 오류 발생:', err);
+                    contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                        currentStep: 'parseError',
+                        progressText: '차단 내역 수집 중 오류가 발생했습니다.'
+                    });
+                });
+            }
+            else if (currentStep === 'readyToUpload') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
                 footer.style.display = 'none';
 
-                contentDiv.querySelector('#uploadConfirmBtn').onclick = () => {
-                    const sheetId = contentDiv.querySelector('#sheetIdInput').value.trim();
+                contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
+                    sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
                     if (!sheetId) {
                         alert('시트 ID를 입력해주세요.');
                         return;
                     }
-                    GM_setValue('spreadsheetId', sheetId);
-                    this.#eventHandlers.onUploadParsed(sheetId, parsedRecords);
-                    modal.style.display = 'none';
+                    currentStep = 'uploadInProgress';
+                    updateContent();
                 };
-            } else {
-                contentDiv.innerHTML = `<p>불러오는 중...</p>`;
+
+                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'uploadInProgress') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
+                });
+                footer.style.display = 'none';
+
+                (async () => {
+                    GM_setValue('spreadsheetId', sheetId);
+                    try {
+                        resultMessage = await this.#eventHandlers.sendToGoogleSheet(sheetId, banList);
+                        currentStep = 'uploadComplete'
+                        updateContent();
+                    }
+                    catch (e) {
+                        resultMessage = e
+                        currentStep = 'uploadError'
+                        updateContent();
+                    }
+                })();
+            }
+            else {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage
+                });
                 footer.style.display = 'none';
             }
         };
@@ -243,35 +306,88 @@ class UIManager {
         `;
         leftContainer.appendChild(container);
 
-        document.getElementById('gallscopeExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onFetchBanList());
+        document.getElementById('gallscopeExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onShowExportBanListModal());
 
         console.log('Gallscope: 차단목록 내보내기 버튼 삽입 완료.');
     }
 
-    renderParseConfirmModalContent() {
-        return `
-        <div class="export-ban-list-modal-content">
-            <div>차단 내역을 불러오고 Google 시트에 업로드합니다.</div style="font-weight:700; font-size:15px;"><p>먼저 차단 내역을 불러오시겠습니까?</p>
-            <div class="scope-modal-footer">
-                <div class="scope-modal-buttons">
-                    <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button><button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
-                </div>
-            </div>
-        </div>`;
-    }
+    renderBanExportModalContent(state = {}) {
+        const {
+            currentStep = 'confirm', // 'confirm' | 'parsing' | 'readyToUpload' | 'done'
+            progressText = '',
+            sheetId = '',
+            resultMessage = ''
+        } = state;
 
-    renderUploadConfirmModalContent() {
-        return `
-        <div class="export-ban-list-modal-content">
-            <div>차단 내역을 Google 시트에 업로드합니다.</div>
-            <div>업로드하시겠습니까?</div>
-            <div class="scope-modal-footer">
-                <div class="scope-modal-buttons">
-                    <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+        let innerHTML = '';
+
+        if (currentStep === 'confirm') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?<p><br></p></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button><button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
                 </div>
-            </div>
-        </div>`;
+            </div>`
+        }
+        else if (currentStep === 'parsing') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div>차단 내역을 수집 중입니다...</div>
+                <div style="font-size: 13px; color: gray;">${progressText || '준비중...'}</div>
+            </div>`;
+        }
+        else if (currentStep === 'parseError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div>차단 내역 수집 중 오류가 발생했습니다.</div>
+                <div>다시 시도해주세요.</div>
+            </div>`;
+        }
+        else if (currentStep === 'readyToUpload') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">차단 내역을 다음 Google 시트에 업로드하시겠습니까?</div>
+                <div class="sheet-id-input-group">
+                    <input type="text" id="sheetIdInput" class="sheet-id-input" 
+                        placeholder="${sheetId}"/>
+                </div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'uploadInProgress') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">업로드 중...</div>
+            </div>`;
+        }
+        else if (currentStep === 'uploadComplete') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">업로드 성공</div>
+                <div>${resultMessage}</div>
+            </div>`;
+        }
+        else if (currentStep === 'uploadError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">업로드 실패</div>
+                <div>${resultMessage}</div>
+                <div style="font-size: 13px; color: gray;">구글 로그인 상태와 시트 권한을 확인해주세요.</div>
+                <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
+                    https://accounts.google.com/
+                </a>
+            </div>`;
+        }
+
+        return `<div class="ban-export-modal-content">${innerHTML}</div>`;
     }
 
     isDarkMode() {
@@ -318,24 +434,26 @@ class Gallscope {
             sleep: this.#utils.sleep,
             escapeHtml: this.#utils.escapeHtml,
             onShowScopeInput: () => this.#modalManager.showScopeInput(),
-            onFetchBanList: () => this.#modalManager.showExportBanListModal(),
+            onShowExportBanListModal: () => this.#modalManager.showExportBanListModal(),
             onStartParsing: async (progressCallback) => this.exportBanList(progressCallback),
+            sendToGoogleSheet: async (sheetId, banList) => this.sendToGoogleSheet(sheetId, banList),
         };
     }
 
     async exportBanList(progressCallback) {
-        const gallId = galleryParser.galleryId;
+        const galleryId = galleryParser.galleryId;
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
         const allBanRecords = [];
 
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+        let previousEmptyPageCount = 0;
         for (let i = 1; i <= this.#config.CONSTANTS.MAX_BAN_LIST_PAGES_LIMIT; i += this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE) {
             const batch = Array.from({ length: this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE }, (_, j) => i + j);
 
             let results
             try {
-                results = await Promise.all(batch.map(page => this.fetchBanPage(gallId, gallType, page)));
+                results = await Promise.all(batch.map(page => this.fetchBanPage(galleryId, gallType, page)));
             } catch (err) {
                 console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
                 i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
@@ -351,11 +469,22 @@ class Gallscope {
                 continue;
             }
 
-            let isEmpty = false;
+            let isEnd = false;
+            let isMissing = false;
             for (const result of results) {
                 if (result.status === 'empty') {
-                    isEmpty = true;
-                    break; // 빈 페이지가 나오면 종료
+                    if (previousEmptyPageCount > 4) {
+                        isEnd = true;
+                    }
+                    else {
+                        previousEmptyPageCount++;
+                    }
+                }
+                else {
+                    if (previousEmptyPageCount > 0) {
+                        isMissing = true;
+                        break;
+                    }
                 }
 
                 allBanRecords.push(...result.parsed);
@@ -366,10 +495,16 @@ class Gallscope {
                 }
             }
 
-            if (isEmpty) {
-                console.log(`[Gallscope] ${gallId} 갤러리의 차단 내역이 더 이상 없습니다.`);
-                progressCallback(`빈 페이지 감지됨. 수집 종료.`);
-                break; // 빈 페이지가 나오면 종료
+            if (isEnd) {
+                console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역이 더 이상 없습니다.`);
+                progressCallback(`마지막 페이지 감지됨. 수집 종료.`);
+                break;
+            }
+
+            if (isMissing) {
+                console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역 파싱중 오류 감지.`);
+                progressCallback(`오류 감지됨. 수집 종료.`);
+                throw new Error(`[Gallscope] 비정상적인 빈 페이지 위치 감지됨`);
             }
 
             await delay(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS); // 배치 쿨타임
@@ -380,33 +515,38 @@ class Gallscope {
         }
 
         console.log('[Gallscope] 최종 차단 내역:', allBanRecords);
-        //this.sendToGoogleSheet(gallId, allBanRecords);
+        //this.sendToGoogleSheet(galleryId, allBanRecords);
 
         return allBanRecords;
     }
 
-    async fetchBanPage(gallId, gallType, page) {
+    async fetchBanPage(galleryId, gallType, page) {
         const formData = new URLSearchParams();
-        formData.append('gall_id', gallId);
+        formData.append('gall_id', galleryId);
         formData.append('_GALLTYPE_', gallType);
         formData.append('type', 'public');
         formData.append('search', '');
         formData.append('p', page.toString());
 
         try {
-            const res = await new Promise((resolve, reject) => {
-                GM_xmlhttpRequest({
-                    method: 'POST',
-                    url: 'https://gall.dcinside.com/ajax/minor_ajax/manage_report',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    data: formData.toString(),
-                    onload: resolve,
-                    onerror: reject
-                });
-            });
+            const res = await Promise.race([
+                new Promise((resolve, reject) => {
+                    GM_xmlhttpRequest({
+                        method: 'POST',
+                        url: 'https://gall.dcinside.com/ajax/minor_ajax/manage_report',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        data: formData.toString(),
+                        onload: resolve,
+                        onerror: reject
+                    });
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('timeout')), this.#config.CONSTANTS.BAN_LIST_FETCH_TIMEOUT_MS)
+                )
+            ]);
 
             if (!res || res.status !== 200 || res.responseText.includes('<b>내역이 없습니다.</b>')) {
                 return { status: 'empty', page, parsed: [] };
@@ -427,35 +567,60 @@ class Gallscope {
         }
     }
 
-    sendToGoogleSheet(gallId, blockedList) {
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: this.#config.APPS_SCRIPT_URL,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            data: JSON.stringify({
-                gallId: gallId,
-                data: blockedList,
-            }),
+    async sendToGoogleSheet(sheetId, banList) {
+        try {
+            const newBanList = await this.extractUpdatedBanListData(sheetId, banList);
+            return new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: this.#config.APPS_SCRIPT_URL,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    data: JSON.stringify({
+                        action: 'uploadToGoogleSheet',
+                        sheetId,
+                        galleryId: galleryParser.galleryId,
+                        banList: newBanList,
+                    }),
 
-            onload: (res) => {
-                console.log('[Gallscope] Google 스프레드시트 업데이트 응답:', res.responseText);
-                try {
-                    const response = JSON.parse(res.responseText);
-                    if (response.status === 'success') {
-                        console.log('Google 스프레드시트 업데이트 성공');
-                    } else {
-                        console.error('Google 스프레드시트 업데이트 실패:', response.message);
+                    onload: (res) => {
+                        try {
+                            const contentType = res.responseHeaders?.toLowerCase();
+                            if (
+                                res.responseText.trim().startsWith('<!DOCTYPE html') ||
+                                res.responseText.includes('<html') ||
+                                contentType?.includes('text/html')
+                            ) {
+                                console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
+                                reject('Google 계정으로 로그인되어 있지 않습니다.');
+                            }
+                            else {
+                                const response = JSON.parse(res.responseText);
+                                if (response.status === 'success') {
+                                    console.log('Google 스프레드시트 업데이트 성공');
+                                    resolve('Google 스프레드시트 업데이트 성공')
+                                }
+                                else {
+                                    console.error('Google 스프레드시트 업데이트 실패:', response.message);
+                                    reject(`Google 스프레드시트 업데이트 실패: ${response.message}`);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('응답 파싱 실패', e);
+                            reject(`응답 파싱 실패: ${e}`);
+                        }
+                    },
+                    onerror: (err) => {
+                        console.error('Google 스프레드시트 요청 실패:', err);
+                        reject(`Google 스프레드시트 요청 실패: ${err}`);
                     }
-                } catch (e) {
-                    console.error('응답 파싱 실패', e);
-                }
-            },
-            onerror: (err) => {
-                console.error('Google 스프레드시트 요청 실패:', err);
-            }
-        });
+                });
+            });
+        }
+        catch (err) {
+            throw err;
+        }
     }
 
     parseBanList(htmlText) {
@@ -478,52 +643,84 @@ class Gallscope {
         return parsedData;
     }
 
-    renderBanExportModalContent(state = {}) {
-        const {
-            currentStep = 'confirm', // 'confirm' | 'parsing' | 'readyToUpload' | 'done'
-            progressText = '',
-            sheetId = '',
-            resultMessage = ''
-        } = state;
+    async extractUpdatedBanListData(sheetId, banList) {
+        try {
+            const oldData = await this.getOldBanListData(sheetId);
+            const lastDate = oldData.lastDate;
+            const lastDateData = oldData.lastDateData;
 
-        let innerHTML = '';
+            const index = banList.findLastIndex(item => item.date === lastDate);
 
-        if (currentStep === 'confirm') {
-            innerHTML = `
-                <div style="font-weight:700; font-size:15px;">차단 내역 내보내기</div>
-                <p>차단 내역을 가져오고 시트에 업로드합니다.<br>진행하시겠습니까?</p>
-                <div class="modal-footer" style="justify-content: flex-end;">
-                    <button id="banExportConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="banExportCancelBtn" class="modal-cancel-btn">취소</button>
-                </div>
-            `;
-        } else if (currentStep === 'parsing') {
-            innerHTML = `
-                <p>차단 내역을 수집 중입니다...</p>
-                <p style="font-size: 13px; color: gray;">${progressText || '0%'}</p>
-            `;
-        } else if (currentStep === 'readyToUpload') {
-            innerHTML = `
-                <p>총 ${state.totalCount}개의 차단 항목이 수집되었습니다.</p>
-                <div style="margin-top: 12px;">
-                    <label for="gallscopeSheetIdInput">스프레드시트 ID:</label><br>
-                    <input id="gallscopeSheetIdInput" type="text" value="${sheetId}" style="width: 100%; padding: 5px; font-size: 13px;" />
-                </div>
-                <div class="modal-footer" style="justify-content: flex-end; margin-top: 12px;">
-                    <button id="banExportUploadBtn" class="modal-confirm-btn">업로드</button>
-                </div>
-            `;
-        } else if (currentStep === 'done') {
-            innerHTML = `
-                <p>${resultMessage}</p>
-                <div class="modal-footer" style="justify-content: flex-end; margin-top: 12px;">
-                    <button id="banExportCloseBtn" class="modal-confirm-btn">닫기</button>
-                </div>
-            `;
+            if (index === -1) {
+                return banList;
+            }
+
+            // 기존 데이터 길이만큼 빼고 남는 갯수 계산
+            const newDataCount = index + 1 - lastDateData.length;
+
+            if (newDataCount <= 0) {
+                // 기존 데이터가 최신 데이터보다 많거나 같으면 새 데이터 없음
+                return [];
+            }
+
+            // 최신 데이터 배열이 앞부터 최신 → 과거 순서이므로, 새 데이터는 0부터 newDataCount까지
+            return banList.slice(0, newDataCount);
         }
-
-        return `<div class="ban-export-modal-content">${innerHTML}</div>`;
+        catch (err) {
+            throw err;
+        }
     }
+
+    async getOldBanListData(sheetId) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: this.#config.APPS_SCRIPT_URL,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                data: JSON.stringify({
+                    action: 'getOldBanListData',
+                    sheetId,
+                    galleryId: galleryParser.galleryId,
+                }),
+
+                onload: (res) => {
+                    try {
+                        const contentType = res.responseHeaders?.toLowerCase();
+                        if (
+                            res.responseText.trim().startsWith('<!DOCTYPE html') ||
+                            res.responseText.includes('<html') ||
+                            contentType?.includes('text/html')
+                        ) {
+                            console.log(res.responseText);
+                            console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
+                            reject('Google 계정으로 로그인되어 있지 않습니다.');
+                        }
+                        else {
+                            console.log('응답:', res.responseText);
+                            const response = JSON.parse(res.responseText);
+                            if (response.status === 'success') {
+                                console.log('데이터 추출 성공');
+                                resolve({
+                                    lastDate: response.lastDate,
+                                    lastDateData: response.lastDateData,
+                                });
+                            } else {
+                                reject(`데이터 추출 실패: ${response.message}`);
+                            }
+                        }
+                    } catch (e) {
+                        reject(`응답 파싱 실패: ${e}`);
+                    }
+                },
+                onerror: (err) => {
+                    console.error('요청 실패:', err);
+                    reject(`요청 실패: ${err}`);
+                }
+            });
+        });
+    };
 }
 
 class PostParser {
@@ -596,7 +793,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxN7o_bERDYBRlqy_yR1fgfMBnGeysZwmt159DLG6Wxjwqvoim8W8j3veq5bPUDy-rV/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwGdbHSyZNuJO-7uzua5Fz-WIollpp9uLWBGWJ3mtDS9l-E3vXg7TMpO6upyN-_gT13/exec', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',
@@ -717,7 +914,8 @@ const config = {
         DC_MEMO: null,
         BAN_LIST_BATCH_SIZE: 5,
         BAN_LIST_FETCH_DELAY_MS: 100,
-        MAX_BAN_LIST_PAGES_LIMIT: 1000
+        BAN_LIST_FETCH_TIMEOUT_MS: 8000,
+        MAX_BAN_LIST_PAGES_LIMIT: 50,
     },
 
     STATUS_LEVELS: [{
