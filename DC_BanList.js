@@ -121,8 +121,7 @@ class ModalManager {
                     currentStep: currentStep,
                     progressText,
                 });
-
-                // 실제 파싱 작업 실행
+                footer.style.display = 'none';
                 this.#eventHandlers.onStartParsing((progressMsg) => {
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                         currentStep: 'parsing',
@@ -136,7 +135,8 @@ class ModalManager {
                     console.error('[Gallscope] 수집 중 오류 발생:', err);
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                         currentStep: 'parseError',
-                        progressText: '차단 내역 수집 중 오류가 발생했습니다.'
+                        progressText: '차단 내역 수집 중 오류가 발생했습니다.',
+                        resultMessage: err.message || '알 수 없는 오류가 발생했습니다.'
                     });
                 });
             }
@@ -144,6 +144,7 @@ class ModalManager {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     sheetId: storedSheetId,
+                    banListLength: banList.length,
                 });
                 footer.style.display = 'none';
 
@@ -210,6 +211,54 @@ class UIManager {
         this.#log = log || (() => { });
     }
 
+    isDarkMode() {
+        if (!isMobile) {
+            return !!document.getElementById('css-darkmode');
+        }
+
+        return !!document.documentElement.classList.contains('darkmode');
+    }
+
+    updateTheme() {
+        const isDark = this.isDarkMode();
+        document.body.classList.toggle('gallscope-dark-theme', isDark);
+        document.body.classList.toggle('gallscope-light-theme', !isDark);
+        if (this.#state.analysisBoxElement && Object.keys(this.#state.lastCalculatedStats).length > 0) {
+            this.renderAnalysisBox(this.#state.lastCalculatedStats);
+        }
+    }
+
+    async injectStyles() {
+        if (document.getElementById('gallscope-styles')) return;
+
+        console.log('Loading CSS from remote source...');
+        const res = await fetch('https://raw.githubusercontent.com/tristan23612/DC-ModScope/refs/heads/main/data/css.css');
+
+        if (!res.ok) throw new Error("CSS fetch failed")
+        else console.log('CSS loaded successfully');
+
+        const cssRaw = await res.text();
+
+        const css = cssRaw
+            .replaceAll('___SCOPE_BOX_ID___', this.#config.UI.SCOPE_BOX_ID)
+            .replaceAll('___TOGGLE_BUTTON_ID___', this.#config.UI.TOGGLE_BUTTON_ID)
+            .replaceAll('___ICON_URL___', this.#config.ICON_URL)
+            .replaceAll('___USER_POSTS_MODAL_ID___', this.#config.UI.USER_POSTS_MODAL_ID)
+            .replaceAll('___AI_USER_ANALYSIS_MODAL_ID___', this.#config.UI.AI_USER_ANALYSIS_MODAL_ID)
+            .replaceAll('___SCOPE_INPUT_MODAL_ID___', this.#config.UI.SCOPE_INPUT_MODAL_ID)
+            .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
+            .replaceAll('___GRAPH_MODAL_ID___', this.#config.UI.GRAPH_MODAL_ID)
+            .replaceAll('___AI_MODAL_ID___', this.#config.UI.AI_MODAL_ID)
+            .replaceAll('___TOOLTIP_ID___', this.#config.UI.TOOLTIP_ID)
+            .replaceAll('___NEW_USER_HIGHLIGHT_CLASS___', this.#config.UI.NEW_USER_HIGHLIGHT_CLASS)
+            .replace(/\s+/g, ' ').trim();
+
+        const styleEl = document.createElement('style');
+        styleEl.id = 'dc-modscope-styles';
+        styleEl.textContent = css;
+        document.head.appendChild(styleEl);
+    }
+
     injectExportBanListButton() {
         let leftContainer = document.querySelector('.page_head .fl');
         if (!leftContainer) {
@@ -251,7 +300,8 @@ class UIManager {
             currentStep = 'confirm', // 'confirm' | 'parsing' | 'readyToUpload' | 'done'
             progressText = '',
             sheetId = '',
-            resultMessage = ''
+            resultMessage = '',
+            banListLength = 0,
         } = state;
 
         let innerHTML = '';
@@ -259,7 +309,10 @@ class UIManager {
         if (currentStep === 'confirm') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?<p><br></p></div>
+                <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?</div>
+                <div>차단 내역을 수집하여 Google 시트에 업로드할 수 있습니다.</div>
+                <div>이 작업은 매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
+                <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
                         <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button><button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
@@ -277,14 +330,23 @@ class UIManager {
         else if (currentStep === 'parseError') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div>차단 내역 수집 중 오류가 발생했습니다.</div>
-                <div>다시 시도해주세요.</div>
+                <div>차단 내역 수집 중 다음 오류가 발생했습니다.</div>
+                <div style="font-size: 13px; color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
             </div>`;
         }
         else if (currentStep === 'readyToUpload') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">차단 내역을 다음 Google 시트에 업로드하시겠습니까?</div>
+                <div style="font-weight:700; font-size:15px;">${banListLength}개차단 내역을 Google 시트에 업로드하시겠습니까?</div>
+                <div>구글 시트 ID를 입력해주세요.</div>
+                <div style="font-size: 13px; color: gray;">https://docs.google.com/spreadsheets/d/*/~~</div>
+                <div style="font-size: 13px; color: gray;">* 부분 문자열을 입력해주세요.</div>
+                <div style="font-size: 13px; color: gray;">공란일시 이전에 입력한 ID가 적용됩니다.</div>
+                <div style="font-size: 13px; color: gray;">변경을 원치 않으시면 바로 확인을 눌러주세요.</div>
                 <div class="sheet-id-input-group">
                     <input type="text" id="sheetIdInput" class="sheet-id-input" 
                         placeholder="${sheetId}"/>
@@ -315,9 +377,13 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 실패</div>
                 <div>${resultMessage}</div>
-                <div style="font-size: 13px; color: gray;">구글 로그인 상태와 시트 권한을 확인해주세요.</div>
+                <div style="font-size: 13px; color: gray;">구글 로그인 상태와 시트 수정 권한을 확인해주세요.</div>
                 <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
                     https://accounts.google.com/
+                </a>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
                 </a>
             </div>`;
         }
@@ -359,6 +425,8 @@ class Gallscope {
     }
 
     async init() {
+        await this.#uiManager.injectStyles();
+        this.#uiManager.updateTheme();
         this.#uiManager.injectExportBanListButton();
     }
 
@@ -390,18 +458,15 @@ class Gallscope {
             try {
                 results = await Promise.all(batch.map(page => this.fetchBanPage(galleryId, gallType, page)));
             } catch (err) {
-                console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
-                i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
-                console.warn(`[Gallscope] 페이지 ${i} 재시도합니다.`);
-                continue;
-            }
-
-            // 결과에 오류 있으면 다시 시도
-            if (results.some(result => result.status === 'error')) {
-                console.error(`[Gallscope] 일부 페이지 요청 실패, 다시 시도합니다.`);
-                i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
-                console.warn(`[Gallscope] 페이지 ${i} 재시도합니다.`);
-                continue;
+                if (err.name === 'PermissionError') {
+                    throw err; // 매니저 권한이 없을 때는 에러를 던져서 처리
+                }
+                else {
+                    console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
+                    i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
+                    console.warn(`[Gallscope] 페이지 ${i} 재시도합니다.`);
+                    continue;
+                }
             }
 
             let isEnd = false;
@@ -410,6 +475,7 @@ class Gallscope {
                 if (result.status === 'empty') {
                     if (previousEmptyPageCount > 4) {
                         isEnd = true;
+                        break;
                     }
                     else {
                         previousEmptyPageCount++;
@@ -432,13 +498,17 @@ class Gallscope {
 
             if (isEnd) {
                 console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역이 더 이상 없습니다.`);
-                progressCallback(`마지막 페이지 감지됨. 수집 종료.`);
+                if (typeof progressCallback === 'function') {
+                    progressCallback(`마지막 페이지 감지됨. 수집 종료.`);
+                }
                 break;
             }
 
             if (isMissing) {
                 console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역 파싱중 오류 감지.`);
-                progressCallback(`오류 감지됨. 수집 종료.`);
+                if (typeof progressCallback === 'function') {
+                    progressCallback(`오류 감지됨. 수집 종료.`);
+                }
                 throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
             }
 
@@ -447,6 +517,7 @@ class Gallscope {
 
         if (typeof progressCallback === 'function') {
             progressCallback(`총 ${allBanRecords.length}건 수집 완료`);
+            await delay(2000); // 마지막 메시지 표시를 위해 잠시 대기
         }
 
         console.log('[Gallscope] 최종 차단 내역:', allBanRecords);
@@ -487,22 +558,33 @@ class Gallscope {
                 )
             ]);
 
-            if (!res || res.status !== 200 || res.responseText.includes('<b>내역이 없습니다.</b>')) {
-                return { status: 'empty', page, parsed: [] };
+            // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
+            if (res.responseText.includes(galleryParser.baseUrl)) {
+                console.warn(`[Gallscope] 차단 페이지에서 리디렉션 감지됨`);
+                const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
+                err.name = 'PermissionError';
+                throw err;
             }
-
-            const parsed = this.parseBanList(res.responseText);
-            return {
-                status: 'success',
-                page,
-                parsed,
-            };
+            else {
+                const parsed = this.parseBanList(res.responseText);
+                if (parsed.length === 0) {
+                    return {
+                        status: 'empty',
+                        page,
+                        parsed,
+                    };
+                }
+                else {
+                    console.log(`[Gallscope] ${galleryId} 갤러리의 ${page}페이지 차단 내역 파싱 완료.`);
+                    return {
+                        status: 'success',
+                        page,
+                        parsed,
+                    };
+                }
+            }
         } catch (err) {
-            return {
-                status: 'error',
-                page,
-                error: err,
-            };
+            throw err; // 에러를 그대로 던져서 상위에서 처리
         }
     }
 
@@ -510,54 +592,57 @@ class Gallscope {
         try {
             const newBanList = await this.excludeExistingBanListData(sheetId, banList);
             return new Promise((resolve, reject) => {
+                console.log(`[Gallscope] ${newBanList.length}건의 차단 내역을 Google 스프레드시트에 업로드합니다.`);
                 if (newBanList.length === 0) {
                     resolve('갱신할 데이터가 없습니다.');
                 }
-                GM_xmlhttpRequest({
-                    method: 'POST',
-                    url: this.#config.APPS_SCRIPT_URL,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    data: JSON.stringify({
-                        action: 'uploadToGoogleSheet',
-                        sheetId,
-                        galleryId: galleryParser.galleryId,
-                        banList: newBanList,
-                    }),
+                else {
+                    GM_xmlhttpRequest({
+                        method: 'POST',
+                        url: this.#config.APPS_SCRIPT_URL,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        data: JSON.stringify({
+                            action: 'uploadToGoogleSheet',
+                            sheetId,
+                            galleryId: galleryParser.galleryId,
+                            banList: newBanList,
+                        }),
 
-                    onload: (res) => {
-                        try {
-                            const contentType = res.responseHeaders?.toLowerCase();
-                            if (
-                                res.responseText.trim().startsWith('<!DOCTYPE html') ||
-                                res.responseText.includes('<html') ||
-                                contentType?.includes('text/html')
-                            ) {
-                                console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
-                                reject('Google 계정으로 로그인되어 있지 않습니다.');
-                            }
-                            else {
-                                const response = JSON.parse(res.responseText);
-                                if (response.status === 'success') {
-                                    console.log('Google 스프레드시트 업데이트 성공');
-                                    resolve('Google 스프레드시트 업데이트 성공')
+                        onload: (res) => {
+                            try {
+                                const contentType = res.responseHeaders?.toLowerCase();
+                                if (
+                                    res.responseText.trim().startsWith('<!DOCTYPE html') ||
+                                    res.responseText.includes('<html') ||
+                                    contentType?.includes('text/html')
+                                ) {
+                                    console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
+                                    reject('Google 계정으로 로그인되어 있지 않습니다.');
                                 }
                                 else {
-                                    console.error('Google 스프레드시트 업데이트 실패:', response.message);
-                                    reject(`Google 스프레드시트 업데이트 실패: ${response.message}`);
+                                    const response = JSON.parse(res.responseText);
+                                    if (response.status === 'success') {
+                                        console.log('Google 스프레드시트 업데이트 성공');
+                                        resolve('Google 스프레드시트 업데이트 성공')
+                                    }
+                                    else {
+                                        console.error('Google 스프레드시트 업데이트 실패:', response.message);
+                                        reject(`Google 스프레드시트 업데이트 실패: ${response.message}`);
+                                    }
                                 }
+                            } catch (e) {
+                                console.error('응답 파싱 실패', e);
+                                reject(`응답 파싱 실패: ${e}`);
                             }
-                        } catch (e) {
-                            console.error('응답 파싱 실패', e);
-                            reject(`응답 파싱 실패: ${e}`);
+                        },
+                        onerror: (err) => {
+                            console.error('Google 스프레드시트 요청 실패:', err);
+                            reject(`Google 스프레드시트 요청 실패: ${err}`);
                         }
-                    },
-                    onerror: (err) => {
-                        console.error('Google 스프레드시트 요청 실패:', err);
-                        reject(`Google 스프레드시트 요청 실패: ${err}`);
-                    }
-                });
+                    });
+                }
             });
         }
         catch (err) {
@@ -570,6 +655,10 @@ class Gallscope {
         const doc = parser.parseFromString(htmlText, 'text/html');
 
         const rows = Array.from(doc.querySelectorAll('table.minor_block_list tbody tr'));
+
+        if (rows.length === 0) {
+            return []; // 빈 배열 반환
+        }
 
         const parsedData = rows.map(row => {
             const cells = row.querySelectorAll('td');
@@ -607,7 +696,7 @@ class Gallscope {
                 reason,
                 duration,
                 dateTime: `${date} ${time}`,
-                manager,  // 예: "망고스틴(tristan5680)"
+                manager,
             };
         });
 
@@ -628,7 +717,7 @@ class Gallscope {
             const filtered = banList.filter(ban => {
                 const banDate = new Date(ban.dateTime.replace(/\./g, '-').replace(' ', 'T'));
                 const lastDate = new Date(lastDateData.dateTime.replace(/\./g, '-').replace(' ', 'T'));
-                return banDate > lastDate;
+                return banDate >= lastDate;
             });
 
 
@@ -648,8 +737,9 @@ class Gallscope {
             for (let i = filtered.length - 1; i >= 0; i--) {
                 if (isSameEntry(filtered[i], lastDateData)) {
                     console.log(`[Gallscope] 기존 차단 내역과 동일한 행 발견: ${JSON.stringify(filtered[i])}`);
-                    filtered.splice(i, 1); // 동일한 행 제거
-                    break; // 동일한 행이 발견되면 그 이후는 모두 제거
+                    filtered.splice(i); // 동일한 행 제거
+                    console.log(`[Gallscope] 기존 차단 내역과 동일한 행 이후의 모든 데이터 제거`);
+                    break; // 동일한 행 이후는 모두 제거되었으므로 루프 종료
                 }
             }
 
@@ -661,7 +751,7 @@ class Gallscope {
         }
     }
 
-    async getLastDateData (sheetId) {
+    async getLastDateData(sheetId) {
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST',
@@ -782,7 +872,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw2eEDwavzNQN8Y3dMdBMapazaQohk8gH6GZ4k43DOadHHeNG-I2HYAtwqjnFpSjbEF/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbynk3SfKJkiXH_APAVQO2CrW3iZHo37mJQZbnqZRUPQVS4umPQISIYSb4_qEqg36uQ/exec', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',
@@ -902,9 +992,9 @@ const config = {
         MGALL_PERMABAN_LIST_KEY: null,
         DC_MEMO: null,
         BAN_LIST_BATCH_SIZE: 5,
-        BAN_LIST_FETCH_DELAY_MS: 100,
+        BAN_LIST_FETCH_DELAY_MS: 200,
         BAN_LIST_FETCH_TIMEOUT_MS: 8000,
-        MAX_BAN_LIST_PAGES_LIMIT: 50,
+        MAX_BAN_LIST_PAGES_LIMIT: 200,
     },
 
     STATUS_LEVELS: [{
@@ -1029,10 +1119,6 @@ const utils = {
 const isMobile = location.hostname === 'm.dcinside.com';
 const galleryParser = new PostParser();
 await galleryParser.init();
-
-const MAX_PAGE = 500;
-const BATCH_SIZE = 5;
-const PAGE_DELAY_MS = 100;
 
 (async () => {
     // --- Script Entry Point ---
