@@ -29,7 +29,6 @@ class ModalManager {
     #eventHandlers;
     #uiManager;
 
-    #userPostsModal;
     #exportBanListModal;
 
     constructor(config, state, eventHandlers, uiManager) {
@@ -37,8 +36,6 @@ class ModalManager {
         this.#state = state;
         this.#eventHandlers = eventHandlers;
         this.#uiManager = uiManager;
-
-        this.#userPostsModal = null;
 
         this.#exportBanListModal = null;
     }
@@ -67,15 +64,6 @@ class ModalManager {
         return modal;
     }
 
-    #getOrCreateUserPostsModal = () => {
-        if (this.#userPostsModal) return this.#userPostsModal;
-
-        const modal = this.#_createModal(this.#config.UI.USER_POSTS_MODAL_ID, '유저 작성글');
-        this.#userPostsModal = modal;
-        this.#state.userPostsModalElement = modal;
-        return modal;
-    };
-
     #getOrCreateExportBanListModal = () => {
         if (this.#exportBanListModal) return this.#exportBanListModal;
 
@@ -83,59 +71,6 @@ class ModalManager {
         this.#exportBanListModal = modal;
         this.#state.exportModalElement = modal;
         return modal;
-    }
-
-    showUserPosts(targetUserInfo, posts, startPage, endPage, isLoading = false) {
-        this.#eventHandlers.log('ModalManager', `유저 작성글 팝업 표시. 유저: ${targetUserInfo?.titleDisplay || '정보 없음'}, 글 개수: ${posts.length}, 로딩 중: ${isLoading}`);
-        const modal = this.#getOrCreateUserPostsModal();
-        const titleSpan = modal.querySelector('.modal-title > span');
-        const contentDiv = modal.querySelector('.modal-content');
-
-        const titleDisplay = targetUserInfo?.titleDisplay || '알 수 없는 유저';
-        titleSpan.textContent = `${titleDisplay}의 작성글 (${startPage} ~ ${endPage}페이지)`;
-
-        let footer = modal.querySelector('.modal-footer');
-        if (!footer) {
-            footer = document.createElement('div');
-            footer.className = 'modal-footer';
-            modal.appendChild(footer);
-        }
-
-        if (isLoading) {
-            contentDiv.innerHTML = `<p>게시물을 불러오는 중... (0%)</p><small>페이지 양에 따라 시간이 소요될 수 있습니다.</small>`;
-            footer.style.display = 'none';
-        } else {
-            if (posts.length === 0) {
-                contentDiv.innerHTML = '<p>해당 범위에서 유저가 작성한 글을 찾지 못했습니다.</p>';
-                footer.style.display = 'none';
-            } else {
-                const galleryId = galleryParser.galleryId;
-                const basePath = window.location.pathname.replace(/\/lists\/?/, '/view/');
-                let listHtml = `<p>총 ${posts.length}개의 글을 찾았습니다. (최대 ${this.#config.CONSTANTS.MAX_USER_POSTS_TO_DISPLAY}개 표시)</p><ul class="user-posts-list">`;
-
-                for (const post of posts) {
-                    const postDate = post.timestamp ? ((d, p) => `${d.getFullYear().toString().slice(-2)}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`)(new Date(post.timestamp), n => String(n).padStart(2, '0')) : '날짜 없음';
-                    const postViewUrl = (galleryId && post.post_no) ? `${basePath}?id=${galleryId}&no=${post.post_no}` : '#';
-                    const escapedTitle = this.#eventHandlers.escapeHtml(post.title || '제목 없음');
-                    listHtml += `<li style="margin-bottom: 5px;"><a href="${postViewUrl}" target="_blank" rel="noopener noreferrer">${escapedTitle}</a><small style="opacity: 0.7;">(글번호: ${post.post_no}, ${postDate}, 조회: ${post.views}, 추천: ${post.reco})</small></li>`;
-                }
-                contentDiv.innerHTML = listHtml + '</ul>';
-
-                footer.style.display = 'flex';
-                footer.innerHTML = `<button id="${this.#config.UI.ANALYZE_USER_BUTTON_ID}" class="ai-summary-btn">AI 유저 분석</button>`;
-                document.getElementById(this.#config.UI.ANALYZE_USER_BUTTON_ID)?.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const postTitles = posts.map(p => p.title).filter(Boolean);
-                    if (postTitles.length > 0) {
-                        this.#eventHandlers.onAnalyzeUserRequest(targetUserInfo, postTitles);
-                    } else {
-                        alert('분석할 게시글 제목이 없습니다.');
-                    }
-                });
-            }
-        }
-        modal.style.display = 'block';
-        this.#uiManager.updateTheme();
     }
 
     hideExportBanListModal() {
@@ -504,7 +439,7 @@ class Gallscope {
             if (isMissing) {
                 console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역 파싱중 오류 감지.`);
                 progressCallback(`오류 감지됨. 수집 종료.`);
-                throw new Error(`[Gallscope] 비정상적인 빈 페이지 위치 감지됨`);
+                throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
             }
 
             await delay(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS); // 배치 쿨타임
@@ -520,27 +455,31 @@ class Gallscope {
         return allBanRecords;
     }
 
-    async fetchBanPage(galleryId, gallType, page) {
-        const formData = new URLSearchParams();
-        formData.append('gall_id', galleryId);
-        formData.append('_GALLTYPE_', gallType);
-        formData.append('type', 'public');
-        formData.append('search', '');
-        formData.append('p', page.toString());
+    async fetchBanPage(galleryId, galleryType, page) {
+        // base URL 결정
+        let baseUrl = '';
+        if (galleryType === 'MI') {
+            baseUrl = 'https://gall.dcinside.com/mini/management/block';
+        } else if (galleryType === 'M') {
+            baseUrl = 'https://gall.dcinside.com/mgallery/management/block';
+        } else {
+            throw new Error(`Invalid galleryType: ${galleryType}`);
+        }
+
+        // 쿼리 파라미터 구성
+        const url = `${baseUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
 
         try {
             const res = await Promise.race([
                 new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
-                        method: 'POST',
-                        url: 'https://gall.dcinside.com/ajax/minor_ajax/manage_report',
+                        method: 'GET',
+                        url,
                         headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                             'X-Requested-With': 'XMLHttpRequest',
                         },
-                        data: formData.toString(),
                         onload: resolve,
-                        onerror: reject
+                        onerror: reject,
                     });
                 }),
                 new Promise((_, reject) =>
@@ -556,21 +495,24 @@ class Gallscope {
             return {
                 status: 'success',
                 page,
-                parsed
+                parsed,
             };
         } catch (err) {
             return {
                 status: 'error',
                 page,
-                error: err
+                error: err,
             };
         }
     }
 
     async sendToGoogleSheet(sheetId, banList) {
         try {
-            const newBanList = await this.extractUpdatedBanListData(sheetId, banList);
+            const newBanList = await this.excludeExistingBanListData(sheetId, banList);
             return new Promise((resolve, reject) => {
+                if (newBanList.length === 0) {
+                    resolve('갱신할 데이터가 없습니다.');
+                }
                 GM_xmlhttpRequest({
                     method: 'POST',
                     url: this.#config.APPS_SCRIPT_URL,
@@ -627,51 +569,99 @@ class Gallscope {
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, 'text/html');
 
-        const rows = Array.from(doc.querySelectorAll('table tbody tr'));
+        const rows = Array.from(doc.querySelectorAll('table.minor_block_list tbody tr'));
+
         const parsedData = rows.map(row => {
             const cells = row.querySelectorAll('td');
+
+            // 차단 대상: 닉네임 + 식별자 (닉네임은 두 번째 <p>, 식별자는 네 번째 <p>)
+            const blockNikCell = cells[2];
+            const pTags = Array.from(blockNikCell.querySelectorAll('p'))
+                .map(p => p.textContent.trim())
+                .filter(t => t); // 빈 텍스트 제거
+
+            const nickname = pTags[0] || '';
+            const identifier = (pTags[1] || '').replace(/[()]/g, '');
+
+            // 게시글/댓글 내용
+            const content = cells[3]?.querySelector('a')?.textContent.trim() || '';
+
+            // 사유
+            const reason = cells[4]?.textContent.trim() || '';
+
+            // 차단 기간
+            const duration = cells[5]?.textContent.trim() || '';
+
+            // 날짜 + 시간 + 처리자
+            const date = cells[6]?.querySelector('.block_date')?.textContent.trim() || '';
+
+            const time = cells[6]?.querySelector('.block_time')?.textContent.replace('처리 시간 :', '').trim() || '';
+            const managerRaw = cells[6]?.querySelector('.block_conduct')?.textContent || '';
+            const managerMatch = managerRaw.match(/처리자\s*:\s*(.+)/);
+            const manager = managerMatch?.[1]?.trim() || '';
+
             return {
-                nickname: cells[1]?.textContent.replace(/\s+/g, ' ').trim(),
-                content: cells[2]?.textContent.replace(/\s+/g, ' ').trim(),
-                reason: cells[3]?.textContent.replace(/\s+/g, ' ').trim(),
-                duration: cells[4]?.textContent.replace(/\s+/g, ' ').trim(),
-                date: cells[5]?.textContent.replace(/\s+/g, ' ').trim(),
-                manager: cells[6]?.textContent.replace(/\s+/g, ' ').trim(),
+                nickname,
+                identifier,
+                content,
+                reason,
+                duration,
+                dateTime: `${date} ${time}`,
+                manager,  // 예: "망고스틴(tristan5680)"
             };
         });
 
         return parsedData;
     }
 
-    async extractUpdatedBanListData(sheetId, banList) {
+    async excludeExistingBanListData(sheetId, banList) {
         try {
-            const oldData = await this.getOldBanListData(sheetId);
-            const lastDate = oldData.lastDate;
-            const lastDateData = oldData.lastDateData;
+            const result = await this.getLastDateData(sheetId);
+            const lastDateData = result.lastDateData;
 
-            const index = banList.findLastIndex(item => item.date === lastDate);
-
-            if (index === -1) {
+            if (!lastDateData || !lastDateData.dateTime) {
+                // 기존 데이터가 없거나 날짜 정보가 없으면 전체 banList 반환
                 return banList;
             }
 
-            // 기존 데이터 길이만큼 빼고 남는 갯수 계산
-            const newDataCount = index + 1 - lastDateData.length;
+            // 시트에 있는 데이터와 비교하여 새로운 데이터만 필터링
+            const filtered = banList.filter(ban => {
+                const banDate = new Date(ban.dateTime.replace(/\./g, '-').replace(' ', 'T'));
+                const lastDate = new Date(lastDateData.dateTime.replace(/\./g, '-').replace(' ', 'T'));
+                return banDate > lastDate;
+            });
 
-            if (newDataCount <= 0) {
-                // 기존 데이터가 최신 데이터보다 많거나 같으면 새 데이터 없음
-                return [];
+
+            // 2단계: 밑에서부터 lastDateData와 동일한 행 발견되면 그 이후 제거
+            const isSameEntry = (a, b) => {
+                return (
+                    a.nickname === b.nickname &&
+                    a.identifier === b.identifier &&
+                    a.content === b.content &&
+                    a.reason === b.reason &&
+                    a.duration === b.duration &&
+                    a.dateTime === b.dateTime &&
+                    a.manager === b.manager
+                );
+            };
+
+            for (let i = filtered.length - 1; i >= 0; i--) {
+                if (isSameEntry(filtered[i], lastDateData)) {
+                    console.log(`[Gallscope] 기존 차단 내역과 동일한 행 발견: ${JSON.stringify(filtered[i])}`);
+                    filtered.splice(i, 1); // 동일한 행 제거
+                    break; // 동일한 행이 발견되면 그 이후는 모두 제거
+                }
             }
 
-            // 최신 데이터 배열이 앞부터 최신 → 과거 순서이므로, 새 데이터는 0부터 newDataCount까지
-            return banList.slice(0, newDataCount);
+            console.log(`[Gallscope] 기존 차단 내역 제외 후 ${filtered.length}건 남음`);
+            return filtered;
         }
         catch (err) {
             throw err;
         }
     }
 
-    async getOldBanListData(sheetId) {
+    async getLastDateData (sheetId) {
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST',
@@ -680,7 +670,7 @@ class Gallscope {
                     'Content-Type': 'application/json'
                 },
                 data: JSON.stringify({
-                    action: 'getOldBanListData',
+                    action: 'getLastDateData',
                     sheetId,
                     galleryId: galleryParser.galleryId,
                 }),
@@ -703,7 +693,6 @@ class Gallscope {
                             if (response.status === 'success') {
                                 console.log('데이터 추출 성공');
                                 resolve({
-                                    lastDate: response.lastDate,
                                     lastDateData: response.lastDateData,
                                 });
                             } else {
@@ -793,7 +782,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwGdbHSyZNuJO-7uzua5Fz-WIollpp9uLWBGWJ3mtDS9l-E3vXg7TMpO6upyN-_gT13/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw2eEDwavzNQN8Y3dMdBMapazaQohk8gH6GZ4k43DOadHHeNG-I2HYAtwqjnFpSjbEF/exec', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',

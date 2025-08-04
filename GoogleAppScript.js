@@ -13,8 +13,8 @@ function doPost(e) {
     if (action === 'uploadToGoogleSheet') {
         return uploadToGoogleSheet(e);
     }
-    else if (action === 'getOldBanListData') {
-        return handleGetOldBanListData(e);
+    else if (action === 'getLastDateData') {
+        return handleGetLastDateData(e);
     }
     else {
         return ContentService.createTextOutput(
@@ -48,24 +48,30 @@ function uploadToGoogleSheet(e) {
             sheet = spreadsheet.insertSheet(galleryId);
         }
 
+        const headers = ['닉네임', '식별자', '본문', '사유', '기간', '날짜', '처리자'];
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+        sheet.getRange(1, 1, 1, headers.length).setBackground('#3b4890');
+        sheet.getRange(1, 1, 1, headers.length).setFontColor('white')
+
         Logger.log("갤ID: " + galleryId);
         Logger.log("데이터 길이:", banList.length);
 
-        // 시트 맨 위에 삽입
-        sheet.insertRowsBefore(1, banList.length);
+        // 헤더 아래에 삽입
+        sheet.insertRowsBefore(2, banList.length);
 
         // 배열 형태로 변환
         const rows = banList.map(record => [
             record.nickname || '',
+            record.identifier || '',
             record.content || '',
             record.reason || '',
             record.duration || '',
-            record.date || '',
+            record.dateTime || '',
             record.manager || ''
         ]);
 
         // 시트 (1,1) 위치부터 입력
-        sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+        sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
 
         return ContentService.createTextOutput(
             JSON.stringify({
@@ -81,60 +87,62 @@ function uploadToGoogleSheet(e) {
     }
 }
 
-function handleGetOldBanListData(e) {
+function handleGetLastDateData(e) {
     try {
         const content = JSON.parse(e.postData.contents);
         const sheetId = content.sheetId
         const galleryId = content.galleryId;
-        
+
         if (!sheetId || !galleryId) {
             throw new Error('There is an empty data')
         }
 
-        const spreadsheet = SpreadsheetApp.openById(sheetId);
+        // 스프레드시트 열기 시도 및 유효성 검사
+        let spreadsheet;
+        try {
+            spreadsheet = SpreadsheetApp.openById(sheetId);
+        } catch (err) {
+            throw new Error('유효하지 않은 스프레드시트 ID입니다.');
+        }
+
         let sheet = spreadsheet.getSheetByName(galleryId);
-
-        const MAX_ROWS_TO_SCAN = 250;
-        const NUM_COLUMNS = 6;
-
-        const rowCount = sheet.getLastRow();
-        const readRows = Math.min(rowCount, MAX_ROWS_TO_SCAN);
-
-        if (readRows === 0) {
-            return {
-                lastDate: null,
-                lastDateData: []
-            };
+        if (!sheet) {
+            // 시트가 없으면 빈 데이터 반환 (에러 던지지 않음)
+            return ContentService.createTextOutput(
+                JSON.stringify({
+                    status: 'success',
+                    lastDate: null,
+                    lastDateData: []
+                })
+            ).setMimeType(ContentService.MimeType.JSON);
         }
 
-        const data = sheet.getRange(1, 1, readRows, NUM_COLUMNS).getValues();
-
-        let lastDate = data[0][4];
-        let lastChangeRow = 1;
-
-        for (let i = 1; i < data.length; i++) {
-            const currDate = data[i][4];
-            if (currDate !== lastDate) {
-                break;
-            }
-            lastChangeRow++;
+        // 시트의 가장 2행 데이터 가져오기
+        const row = sheet.getRange(2, 1, 1, 7).getValues();
+        if (row.length === 0 || row[0].length === 0) {
+            // 데이터가 없으면 빈 데이터 반환
+            return ContentService.createTextOutput(
+                JSON.stringify({
+                    status: 'success',
+                    lastDate: null,
+                    lastDateData: []
+                })
+            ).setMimeType(ContentService.MimeType.JSON);
         }
 
-        // 날짜 바뀌기 전까지의 데이터
-        const lastDateData = data.slice(0, lastChangeRow);
-
+        //row 반환
         return ContentService.createTextOutput(
             JSON.stringify({
                 status: 'success',
-                lastDate,
-                lastDateData: lastDateData.map(row => ({
-                    nickname: row[0],
-                    content: row[1],
-                    reason: row[2],
-                    duration: row[3],
-                    date: row[4],
-                    manager: row[5]
-                }))
+                lastDateData: {
+                    nickname: row[0][0] || '',
+                    identifier: row[0][1] || '',
+                    content: row[0][2] || '',
+                    reason: row[0][3] || '',
+                    duration: row[0][4] || '',
+                    dateTime: row[0][5] || '',
+                    manager: row[0][6] || ''
+                }
             })
         ).setMimeType(ContentService.MimeType.JSON);
     }
