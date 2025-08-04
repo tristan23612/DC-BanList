@@ -528,17 +528,17 @@ class Gallscope {
 
     async fetchBanPage(galleryId, galleryType, page) {
         // base URL 결정
-        let baseUrl = '';
+        let baseBanListUrl = '';
         if (galleryType === 'MI') {
-            baseUrl = 'https://gall.dcinside.com/mini/management/block';
+            baseBanListUrl = 'https://gall.dcinside.com/mini/management/block';
         } else if (galleryType === 'M') {
-            baseUrl = 'https://gall.dcinside.com/mgallery/management/block';
+            baseBanListUrl = 'https://gall.dcinside.com/mgallery/management/block';
         } else {
             throw new Error(`Invalid galleryType: ${galleryType}`);
         }
 
         // 쿼리 파라미터 구성
-        const url = `${baseUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
+        const url = `${baseBanListUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
 
         try {
             const res = await Promise.race([
@@ -559,6 +559,8 @@ class Gallscope {
             ]);
 
             // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
+            console.log(res.responseText);
+            console.log(galleryParser.baseUrl);
             if (res.responseText.includes(galleryParser.baseUrl)) {
                 console.warn(`[Gallscope] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
@@ -835,7 +837,7 @@ class PostParser {
         else {
             this.galleryId = new URLSearchParams(window.location.search).get('id');
             this.galleryType = window.location.href.includes('mgallery') ? 'mgallery' : (window.location.href.includes('mini') ? 'mini' : null);
-            this.baseUrl = window.location.href.split('?')[0];
+            this.baseUrl = window.location.href.split('?')[0].replace(/\/$/, '');
             this.doc = document; // 기본값은 현재 문서
         }
     }
