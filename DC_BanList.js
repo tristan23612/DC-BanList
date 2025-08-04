@@ -331,7 +331,7 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div>차단 내역 수집 중 다음 오류가 발생했습니다.</div>
-                <div style="font-size: 13px; color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
+                <div style="color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
                 <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
@@ -376,7 +376,7 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 실패</div>
-                <div>${resultMessage}</div>
+                <div style="color: red;">${resultMessage}</div>
                 <div style="font-size: 13px; color: gray;">구글 로그인 상태와 시트 수정 권한을 확인해주세요.</div>
                 <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
                     https://accounts.google.com/
