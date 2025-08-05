@@ -129,7 +129,7 @@ class ModalManager {
                     });
                 }).then(result => {
                     banList = result;
-                    currentStep = 'readyToUpload';
+                    currentStep = 'oauthConfirmation';
                     updateContent();
                 }).catch(err => {
                     console.error('[Gallscope] 수집 중 오류 발생:', err);
@@ -139,6 +139,22 @@ class ModalManager {
                         resultMessage: err.message || '알 수 없는 오류가 발생했습니다.'
                     });
                 });
+            }
+            else if (currentStep === 'oauthConfirmation') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
+
+                footer.style.display = 'none';
+                contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
+                    currentStep = 'readyToUpload';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#oauthCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                };
             }
             else if (currentStep === 'readyToUpload') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -177,10 +193,75 @@ class ModalManager {
                     }
                     catch (e) {
                         resultMessage = e
-                        currentStep = 'uploadError'
-                        updateContent();
+                        if (e.name === 'NotLoggedInError') {
+                            currentStep = 'NotLoggedInError';
+                            updateContent();
+                        }
+                        else if (e.name === 'OAuthUnauthorizedError') {
+                            currentStep = 'OAuthUnauthorizedError';
+                            updateContent();
+                        }
+                        else {
+                            currentStep = 'uploadError'
+                            updateContent();
+                        }
                     }
                 })();
+            }
+            else if (currentStep === 'NotLoggedInError') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage,
+                });
+                footer.style.display = 'none';
+                
+                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
+                    currentStep = 'readyToUpload';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'OAuthUnauthorizedError') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage,
+                });
+                footer.style.display = 'none';
+
+                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
+                    currentStep = 'readyToUpload';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'uploadError') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage,
+                });
+                footer.style.display = 'none';
+
+                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
+                    currentStep = 'readyToUpload';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'uploadComplete') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage
+                });
+                footer.style.display = 'none';
             }
             else {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -338,6 +419,24 @@ class UIManager {
                 </a>
             </div>`;
         }
+        else if (currentStep === 'oauthConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
+                <div>Google Apps Script를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
+                <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
+                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: gray;">
+                    Google Apps Script 승인 페이지로 이동
+                </a>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 승인 완료</button>
+                        <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
         else if (currentStep === 'readyToUpload') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
@@ -365,11 +464,41 @@ class UIManager {
                 <div style="font-weight:700; font-size:15px;">업로드 중...</div>
             </div>`;
         }
-        else if (currentStep === 'uploadComplete') {
+        else if (currentStep === 'NotLoggedInError') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">업로드 성공</div>
-                <div>${resultMessage}</div>
+                <div style="font-weight:700; font-size:15px;">로그인되지 않은 상태로 감지됨</div>
+                <div>Google 계정으로 로그인되어 있지 않습니다.</div>
+                <div>혹은 GAS 링크가 만료되었을 수 있습니다.</div>
+                <div style="font-size: 13px; color: gray;">로그인 후 다시 시도해주세요.</div>
+                <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
+                    https://accounts.google.com/
+                </a>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'OAuthUnauthorizedError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">OAuth 미승인 상태로 감지됨</div>
+                <div>Google 스프레드시트 접근 권한이 승인되지 않았습니다.</div>
+                <div style="font-size: 13px; color: gray;">Google Apps Script에서 OAuth 권한을 승인해주세요.</div>
+                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: gray;">
+                    GAS 승인 페이지로 이동
+                </a>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
             </div>`;
         }
         else if (currentStep === 'uploadError') {
@@ -381,6 +510,31 @@ class UIManager {
                 <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
                     https://accounts.google.com/
                 </a>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'uploadComplete') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">업로드 성공</div>
+                <div>${resultMessage}</div>
+            </div>`;
+        }
+        else {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">알 수 없는 상태</div>
+                <div>현재 상태를 식별할 수 없습니다.</div>
                 <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
@@ -617,25 +771,15 @@ class Gallscope {
 
                         onload: (res) => {
                             try {
-                                const contentType = res.responseHeaders?.toLowerCase();
-                                if (
-                                    res.responseText.trim().startsWith('<!DOCTYPE html') ||
-                                    res.responseText.includes('<html') ||
-                                    contentType?.includes('text/html')
-                                ) {
-                                    console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
-                                    reject('Google 계정으로 로그인되어 있지 않습니다.');
+                                const response = JSON.parse(res.responseText);
+                                if (response.status === 'success') {
+                                    // 업로드된 데이터의 개수를 포함한 메시지 반환
+                                    const message = `${banList.length}건 중 ${newBanList.length}건의 차단 내역이 업로드되었습니다.`;
+                                    console.log(message);
                                 }
                                 else {
-                                    const response = JSON.parse(res.responseText);
-                                    if (response.status === 'success') {
-                                        console.log('Google 스프레드시트 업데이트 성공');
-                                        resolve('Google 스프레드시트 업데이트 성공')
-                                    }
-                                    else {
-                                        console.error('Google 스프레드시트 업데이트 실패:', response.message);
-                                        reject(`Google 스프레드시트 업데이트 실패: ${response.message}`);
-                                    }
+                                    console.error('Google 스프레드시트 업데이트 실패:', response.message);
+                                    reject(`Google 스프레드시트 업데이트 실패: ${response.message}`);
                                 }
                             } catch (e) {
                                 console.error('응답 파싱 실패', e);
@@ -772,15 +916,33 @@ class Gallscope {
 
                 onload: (res) => {
                     try {
-                        const contentType = res.responseHeaders?.toLowerCase();
+                        const contentType = res.responseHeaders?.toLowerCase() || '';
+
                         if (
                             res.responseText.trim().startsWith('<!DOCTYPE html') ||
                             res.responseText.includes('<html') ||
                             contentType?.includes('text/html')
                         ) {
-                            console.log(res.responseText);
-                            console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
-                            reject('Google 계정으로 로그인되어 있지 않습니다.');
+                            const html = res.responseText;
+                            console.warn('[Gallscope] HTML 응답을 받음:', html);
+                            if (this.isNotLoggedIn(html)) {
+                                const err = new Error('로그인되지 않은 상태로 감지됨');
+                                err.name = 'NotLoggedInError';
+                                console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
+                                reject(err);
+                            }
+                            else if (this.isOAuthUnauthorized(html)) {
+                                const err = new Error('OAuth 미승인 상태로 감지됨');
+                                err.name = 'OAuthUnauthorizedError';
+                                console.warn('[Gallscope] OAuth 미승인 상태로 감지됨');
+                                reject(err);
+                            }
+                            else {
+                                console.warn('[Gallscope] HTML 응답을 받았지만 상태를 식별하지 못함');
+                                const err = new Error('알 수 없는 HTML 응답을 받음');
+                                err.name = 'UnknownHtmlResponseError';
+                                reject(err);
+                            }
                         }
                         else {
                             console.log('응답:', res.responseText);
@@ -805,6 +967,20 @@ class Gallscope {
             });
         });
     };
+
+    isNotLoggedIn(html) {
+        return html.includes('현재 파일을 열 수 없습니다.') ||
+            html.includes('<title>페이지를 찾을 수 없음</title>') ||
+            html.includes('drive.google.com/start/apps');
+    }
+
+    isOAuthUnauthorized(html) {
+        return html.includes('DC_BanList_GAS (Unverified)') ||
+            html.includes('권한이 필요합니다') ||
+            html.includes('이 앱은 Google에서 인증되지 않았습니다') ||
+            html.includes('Review Permissions') ||
+            html.includes('Review Permissions');
+    }
 }
 
 class PostParser {
@@ -877,7 +1053,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwHT1wYvcMu9xB_agPxb9FSlvb9tpT6t6OWD1s0JE2SYgCFv_sB6pMkZFge38QWfOo/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyQXZvr_l4x1QISE1jYXN13lEgCEmlrjwds2OCHJoIP93-C8tb4KV77KBsutAz7kAJS/exec', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',
