@@ -366,14 +366,14 @@ class UIManager {
                     class="modal-confirm-btn"
                     style="padding:4px 8px; font-size:13px;"
                     title="차단 목록을 콘솔에 출력">
-            차단목록 내보내기
+            차단 내역 내보내기
             </button>
         `;
         leftContainer.appendChild(container);
 
         document.getElementById('gallscopeExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onShowExportBanListModal());
 
-        console.log('Gallscope: 차단목록 내보내기 버튼 삽입 완료.');
+        console.log('Gallscope: 차단 내역 내보내기 버튼 삽입 완료.');
     }
 
     renderBanExportModalContent(state = {}) {
@@ -391,8 +391,8 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?</div>
-                <div>차단 내역을 수집하여 Google 시트에 업로드할 수 있습니다.</div>
-                <div>이 작업은 매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
+                <div>차단 내역을 수집하여 Google 시트에 업로드합니다.</div>
+                <div>매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
@@ -405,7 +405,7 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div>차단 내역을 수집 중입니다...</div>
-                <div style="font-size: 13px; color: gray;">${progressText || '준비중...'}</div>
+                <div style="font-size: 13px; color: gray;">${progressText || '시작중...'}</div>
             </div>`;
         }
         else if (currentStep === 'parseError') {
@@ -423,7 +423,7 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
-                <div>Google Apps Script를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
+                <div>GAS를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
                 <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
                 <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 페이지로 이동
@@ -431,10 +431,15 @@ class UIManager {
                 <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 가이드 영상
                 </a>
+                <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
-                        <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 승인 완료</button>
+                        <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 인증 완료</button>
                         <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
                     </div>
                 </div>
@@ -472,7 +477,7 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">로그인되지 않은 상태로 감지됨</div>
                 <div>Google 계정으로 로그인되어 있지 않습니다.</div>
-                <div>혹은 GAS 링크가 만료되었을 수 있습니다.</div>
+                <div>혹은 GAS 링크가 만료되었을 수 있습니다.(불확실)</div>
                 <div style="font-size: 13px; color: gray;">로그인 후 다시 시도해주세요.</div>
                 <a href="https://accounts.google.com/" target="_blank" style="font-size: 13px; color: gray;">
                     https://accounts.google.com/
@@ -490,7 +495,6 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">OAuth 미승인 상태로 감지됨</div>
-                <div>Google 스프레드시트 접근 권한이 승인되지 않았습니다.</div>
                 <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
                 <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 페이지로 이동
@@ -498,10 +502,15 @@ class UIManager {
                 <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 가이드 영상
                 </a>
+                <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
-                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="backToUploadBtn" class="modal-confirm-btn">권한 인증 완료</button>
                         <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
                     </div>
                 </div>
@@ -623,7 +632,7 @@ class Gallscope {
                 }
                 else {
                     if (typeof progressCallback === 'function') {
-                        progressCallback(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.: ${err.message}`);
+                        progressCallback(`페이지 ${i} 요청 중 오류 발생, 재시도합니다. ${err.message}`);
                     }
                     console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
                     i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
