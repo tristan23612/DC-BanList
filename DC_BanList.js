@@ -341,7 +341,7 @@ class UIManager {
         else if (currentStep === 'readyToUpload') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">${banListLength}개차단 내역을 Google 시트에 업로드하시겠습니까?</div>
+                <div style="font-weight:700; font-size:15px;">${banListLength}건의 차단내역을 구글시트에 업로드하시겠습니까?</div>
                 <div>구글 시트 ID를 입력해주세요.</div>
                 <div style="font-size: 13px; color: gray;">https://docs.google.com/spreadsheets/d/*/~~</div>
                 <div style="font-size: 13px; color: gray;">* 부분 문자열을 입력해주세요.</div>
