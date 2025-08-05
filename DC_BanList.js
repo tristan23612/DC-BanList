@@ -150,7 +150,7 @@ class ModalManager {
 
                 contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
                     sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
-                    if (!sheetId) {
+                    if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
                         alert('시트 ID를 입력해주세요.');
                         return;
                     }
@@ -530,7 +530,7 @@ class Gallscope {
     }
 
     async fetchBanPage(galleryId, galleryType, page) {
-        // base URL 결정
+        // baseBanListUrl URL 결정
         let baseBanListUrl = '';
         if (galleryType === 'MI') {
             baseBanListUrl = 'https://gall.dcinside.com/mini/management/block';
