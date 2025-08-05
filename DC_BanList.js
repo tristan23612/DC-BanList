@@ -425,8 +425,11 @@ class UIManager {
                 <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
                 <div>Google Apps Script를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
                 <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
-                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: gray;">
-                    Google Apps Script 승인 페이지로 이동
+                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                    GAS 승인 페이지로 이동
+                </a>
+                <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                    GAS 승인 가이드 영상
                 </a>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
@@ -488,9 +491,12 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">OAuth 미승인 상태로 감지됨</div>
                 <div>Google 스프레드시트 접근 권한이 승인되지 않았습니다.</div>
-                <div style="font-size: 13px; color: gray;">Google Apps Script에서 OAuth 권한을 승인해주세요.</div>
-                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: gray;">
+                <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
+                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 페이지로 이동
+                </a>
+                <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                    GAS 승인 가이드 영상
                 </a>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
@@ -1054,6 +1060,7 @@ const config = {
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyQXZvr_l4x1QISE1jYXN13lEgCEmlrjwds2OCHJoIP93-C8tb4KV77KBsutAz7kAJS/exec', // 실제 URL로 교체
+    APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasOauth.gif', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',
