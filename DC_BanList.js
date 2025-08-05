@@ -462,6 +462,9 @@ class Gallscope {
                     throw err; // 매니저 권한이 없을 때는 에러를 던져서 처리
                 }
                 else {
+                    if (typeof progressCallback === 'function') {
+                        progressCallback(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.: ${err.message}`);
+                    }
                     console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
                     i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
                     console.warn(`[Gallscope] 페이지 ${i} 재시도합니다.`);
@@ -675,7 +678,7 @@ class Gallscope {
             const identifier = (pTags[1] || '').replace(/[()]/g, '');
 
             // 게시글/댓글 내용
-            const content = cells[3]?.querySelector('a')?.textContent.trim() || '';
+            const content = `[${cells[3]?.querySelector('em')?.textContent.trim() || ''}] ${cells[3]?.querySelector('a')?.textContent.trim() || ''}`;
 
             // 사유
             const reason = cells[4]?.textContent.trim() || '';
@@ -874,7 +877,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbynk3SfKJkiXH_APAVQO2CrW3iZHo37mJQZbnqZRUPQVS4umPQISIYSb4_qEqg36uQ/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwHT1wYvcMu9xB_agPxb9FSlvb9tpT6t6OWD1s0JE2SYgCFv_sB6pMkZFge38QWfOo/exec', // 실제 URL로 교체
 
     DRAG_EVENTS: {
         START: 'mousedown',

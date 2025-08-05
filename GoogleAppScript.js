@@ -48,7 +48,7 @@ function uploadToGoogleSheet(e) {
             sheet = spreadsheet.insertSheet(galleryId);
         }
 
-        const headers = ['닉네임', '식별자', '본문', '사유', '기간', '날짜', '처리자'];
+        const headers = ['닉네임', '식별코드', '게시글 / 댓글', '사유', '기간', '처리날짜', '처리자'];
         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
         sheet.getRange(1, 1, 1, headers.length).setBackground('#3b4890');
         sheet.getRange(1, 1, 1, headers.length).setFontColor('white')
