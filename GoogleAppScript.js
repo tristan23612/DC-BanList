@@ -62,6 +62,7 @@ function uploadToGoogleSheet(e) {
         sheet.getRange(1, 1, 1, headers.length).setBackground('#3b4890');
         sheet.getRange(1, 1, 1, headers.length).setFontColor('white')
 
+        Logger.log("uploadToGoogleSheet called");
         Logger.log("갤ID: " + galleryId);
         Logger.log("데이터 길이:", banList.length);
 
@@ -101,6 +102,9 @@ function handleGetLastKnownRecord(e) {
         const content = JSON.parse(e.postData.contents);
         const sheetId = content.sheetId
         const galleryId = content.galleryId;
+
+        Logger.log("handleGetLastKnownRecord called");
+        Logger.log("갤ID: " + galleryId);
 
         if (!sheetId || !galleryId) {
             throw new Error('There is an empty data')

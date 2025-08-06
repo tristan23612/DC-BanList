@@ -21,6 +21,8 @@
 // @grant            GM_deleteValue
 // @run-at           document-end
 // @license          MIT
+// @downloadURL https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/DC_BanList.js
+// @updateURL https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/DC_BanList.js
 // ==/UserScript==
 
 class ModalManager {
@@ -821,7 +823,7 @@ class Gallscope {
         }
         catch (err) {
             console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', err);
-            throw err; // 다른 에러는 그대로 던져서 상위에서 처리
+            throw err;
         }
     }
 
@@ -1061,6 +1063,7 @@ class Gallscope {
                     }
                 },
                 onerror: (err) => {
+                    console.warn('응답 원문:', res.responseText);
                     console.error('요청 실패:', err);
                     reject(`요청 실패: ${err}`);
                 }
@@ -1158,7 +1161,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxDF5twibIjZKxjZ3ZML3G1u8V-2QEKDwYX8uoJVc5ylRgaTAdnQBVJeRBO2loYoxkG/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz_Nw-Itlu4vxvlt_JWI1uvtcCRnnMGvDZrN8yPDroOVmH4ETkx8OWmCf9wfAWL_bTf/exec', // 실제 URL로 교체
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasOauth.gif', // 실제 URL로 교체
 
     DRAG_EVENTS: {
