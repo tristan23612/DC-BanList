@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          0.0.1
+// @version          0.0.2
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -374,7 +374,7 @@ class UIManager {
     }
 
     async injectStyles() {
-        if (document.getElementById('gallscope-styles')) return;
+        if (document.getElementById('dc-banlist-styles')) return;
 
         console.log('Loading CSS from remote source...');
         const res = await fetch('https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css.css');
@@ -399,7 +399,7 @@ class UIManager {
             .replace(/\s+/g, ' ').trim();
 
         const styleEl = document.createElement('style');
-        styleEl.id = 'dc-modscope-styles';
+        styleEl.id = 'dc-banlist-styles';
         styleEl.textContent = css;
         document.head.appendChild(styleEl);
     }
