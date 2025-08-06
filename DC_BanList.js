@@ -94,13 +94,13 @@ class ModalManager {
 
         const storedSheetId = GM_getValue('spreadsheetId', '시트 ID를 입력해주세요.');
 
-        let currentStep = 'sheetIdConfirmation'; // confirm, parsing, readyToUpload
+        let currentStep = 'SheetIdConfirmation'; // confirm, Parsing, ReadyToUpload
         let banList = [];
         let resultMessage = ''
         let sheetId = ''
 
         const updateContent = () => {
-            if (currentStep === 'sheetIdConfirmation') {
+            if (currentStep === 'SheetIdConfirmation') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     sheetId: storedSheetId,
@@ -114,7 +114,7 @@ class ModalManager {
                         return;
                     }
                     GM_setValue('spreadsheetId', sheetId);
-                    currentStep = 'oauthConfirmation';
+                    currentStep = 'OAuthConfirmation';
                     updateContent();
                 };
 
@@ -122,7 +122,7 @@ class ModalManager {
                     this.hideExportBanListModal()
                 }
             }
-            else if (currentStep === 'oauthConfirmation') {
+            else if (currentStep === 'OAuthConfirmation') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     sheetId: storedSheetId,
@@ -130,7 +130,7 @@ class ModalManager {
 
                 footer.style.display = 'none';
                 contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
-                    currentStep = 'exportConfirmation';
+                    currentStep = 'ExportConfirmation';
                     updateContent();
                 };
 
@@ -138,14 +138,14 @@ class ModalManager {
                     this.hideExportBanListModal()
                 };
             }
-            else if (currentStep === 'exportConfirmation') {
+            else if (currentStep === 'ExportConfirmation') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
                 footer.style.display = 'none';
 
                 contentDiv.querySelector('#parseConfirmBtn').onclick = () => {
-                    currentStep = 'parsing';
+                    currentStep = 'Parsing';
                     updateContent();
                 }
 
@@ -153,7 +153,7 @@ class ModalManager {
                     this.hideExportBanListModal()
                 }
             }
-            else if (currentStep === 'parsing') {
+            else if (currentStep === 'Parsing') {
                 const progressText = ''
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
@@ -162,30 +162,49 @@ class ModalManager {
                 footer.style.display = 'none';
                 this.#eventHandlers.onStartParsing((progressMsg) => {
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                        currentStep: 'parsing',
+                        currentStep: 'Parsing',
                         progressText: progressMsg
                     });
                 }).then(result => {
                     banList = result;
                     if (banList.length === 0) {
-                        currentStep = 'uploadComplete';
+                        currentStep = 'UploadComplete';
                         resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
                         updateContent();
                     }
                     else {
-                        currentStep = 'readyToUpload';
+                        currentStep = 'ReadyToUpload';
                         updateContent();
                     }
                 }).catch(err => {
                     console.error('[Gallscope] 수집 중 오류 발생:', err);
-                    contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                        currentStep: 'parseError',
-                        progressText: '차단 내역 수집 중 오류가 발생했습니다.',
-                        resultMessage: err.message || '알 수 없는 오류가 발생했습니다.'
-                    });
+                    if (err.name === 'PermissionError') {
+                        currentStep = 'PermissionError';
+                        resultMessage = err.message;
+                        updateContent();
+                    }
+                    else if (err.name === 'NotLoggedInError') {
+                        currentStep = 'NotLoggedInError';
+                        updateContent();
+                    }
+                    else if (err.name === 'OAuthUnauthorizedError') {
+                        currentStep = 'OAuthUnauthorizedError';
+                        updateContent();
+                    }
+                    else if (err.name === 'SheetAccessDeniedError') {
+                        currentStep = 'SheetAccessDeniedError';
+                        updateContent();
+                    }
+                    else {
+                        currentStep = 'ParseError';
+                        resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
+                        console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', resultMessage);
+                        this.#eventHandlers.log(`[Gallscope] 차단 내역 수집 중 오류 발생: ${resultMessage}`);
+                        updateContent();
+                    }
                 });
             }
-            else if (currentStep === 'readyToUpload') {
+            else if (currentStep === 'ReadyToUpload') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     sheetId: storedSheetId,
@@ -194,7 +213,7 @@ class ModalManager {
                 footer.style.display = 'none';
 
                 contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
-                    currentStep = 'uploadInProgress';
+                    currentStep = 'UploadInProgress';
                     updateContent();
                 };
 
@@ -202,7 +221,7 @@ class ModalManager {
                     this.hideExportBanListModal()
                 }
             }
-            else if (currentStep === 'uploadInProgress') {
+            else if (currentStep === 'UploadInProgress') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
@@ -211,7 +230,7 @@ class ModalManager {
                 (async () => {
                     try {
                         resultMessage = await this.#eventHandlers.sendToGoogleSheet(sheetId, banList);
-                        currentStep = 'uploadComplete'
+                        currentStep = 'UploadComplete'
                         console.log(`[Gallscope] 차단 내역 업로드 완료: ${resultMessage}`);
                         updateContent();
                     }
@@ -225,8 +244,13 @@ class ModalManager {
                             currentStep = 'OAuthUnauthorizedError';
                             updateContent();
                         }
+                        else if (e.name === 'SheetAccessDeniedError') {
+                            currentStep = 'SheetAccessDeniedError';
+                            updateContent();
+                        }
                         else {
-                            currentStep = 'uploadError'
+                            currentStep = 'UploadError'
+                            resultMessage = e.message || '알 수 없는 오류가 발생했습니다.';
                             updateContent();
                         }
                     }
@@ -239,8 +263,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
-                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
-                    currentStep = 'readyToUpload';
+                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
+                    currentStep = 'SheetIdConfirmation';
                     updateContent();
                 };
 
@@ -255,8 +279,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
-                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
-                    currentStep = 'readyToUpload';
+                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
+                    currentStep = 'SheetIdConfirmation';
                     updateContent();
                 };
 
@@ -264,7 +288,21 @@ class ModalManager {
                     this.hideExportBanListModal()
                 }
             }
-            else if (currentStep === 'uploadError') {
+            else if (currentStep === 'SheetAccessDeniedError') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    resultMessage,
+                });
+                footer.style.display = 'none';
+                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
+                    currentStep = 'SheetIdConfirmation';
+                    updateContent();
+                }
+                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'UploadError') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     resultMessage,
@@ -272,7 +310,7 @@ class ModalManager {
                 footer.style.display = 'none';
 
                 contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
-                    currentStep = 'readyToUpload';
+                    currentStep = 'ReadyToUpload';
                     updateContent();
                 };
 
@@ -280,7 +318,7 @@ class ModalManager {
                     this.hideExportBanListModal()
                 }
             }
-            else if (currentStep === 'uploadComplete') {
+            else if (currentStep === 'UploadComplete') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
                     resultMessage
@@ -402,7 +440,7 @@ class UIManager {
 
     renderBanExportModalContent(state = {}) {
         const {
-            currentStep = 'confirm', // 'confirm' | 'parsing' | 'readyToUpload' | 'done'
+            currentStep = 'confirm', // 'confirm' | 'Parsing' | 'ReadyToUpload' | 'done'
             progressText = '',
             sheetId = '',
             resultMessage = '',
@@ -410,7 +448,7 @@ class UIManager {
         } = state;
 
         let innerHTML = '';
-        if (currentStep === 'sheetIdConfirmation') {
+        if (currentStep === 'SheetIdConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">기존 데이터 확인을 위해 시트 ID가 먼저 필요합니다.</div>
@@ -431,22 +469,7 @@ class UIManager {
                 </div>
             </div>`;
         }
-        else if (currentStep === 'exportConfirmation') {
-            innerHTML = `
-            <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?</div>
-                <div>차단 내역을 수집하여 Google 시트에 업로드합니다.</div>
-                <div>매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
-                <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
-            </div>`
-        }
-        else if (currentStep === 'oauthConfirmation') {
+        else if (currentStep === 'OAuthConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
@@ -472,28 +495,43 @@ class UIManager {
                 </div>
             </div>`;
         }
-        else if (currentStep === 'parsing') {
+        else if (currentStep === 'ExportConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?</div>
+                <div>차단 내역을 수집하여 Google 시트에 업로드합니다.</div>
+                <div>매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`
+        }
+        else if (currentStep === 'Parsing') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div>차단 내역을 수집 중입니다...</div>
                 <div style="font-size: 13px; color: gray;">${progressText || '시작중...'}</div>
             </div>`;
         }
-        else if (currentStep === 'parseError') {
+        else if (currentStep === 'ParseError') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div>차단 내역 수집 중 다음 오류가 발생했습니다.</div>
-                <div style="color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
+                <div style="color: red;">${resultMessage}</div>
                 <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
                 </a>
             </div>`;
         }
-        else if (currentStep === 'readyToUpload') {
+        else if (currentStep === 'ReadyToUpload') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">${banListLength}건의 차단내역을 구글시트에 업로드하시겠습니까?</div>
+                <div style="font-weight:700; font-size:15px;">${banListLength}건의 신규 차단내역을 구글시트에 업로드하시겠습니까?</div>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
@@ -503,7 +541,19 @@ class UIManager {
                 </div>
             </div>`;
         }
-        else if (currentStep === 'uploadInProgress') {
+        else if (currentStep === 'PermissionError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">권한 오류</div>
+                <div>차단 내역을 수집하는 과정에서 권한 오류가 발생했습니다.</div>
+                <div>이 기능을 사용하려면 매니저 권한이 필요합니다.</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
+            </div>`;
+        }
+        else if (currentStep === 'UploadInProgress') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 중...</div>
@@ -522,7 +572,7 @@ class UIManager {
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
-                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
                         <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
                     </div>
                 </div>
@@ -547,13 +597,31 @@ class UIManager {
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
-                        <button id="backToUploadBtn" class="modal-confirm-btn">권한 인증 완료</button>
+                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">권한 인증 완료</button>
                         <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
                     </div>
                 </div>
             </div>`;
         }
-        else if (currentStep === 'uploadError') {
+        else if (currentStep === 'SheetAccessDeniedError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">시트 접근 권한이 없습니다</div>
+                <div>본인의 시트가 아닌 경우 공유 상태를 확인해주세요.</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'UploadError') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 실패</div>
@@ -575,7 +643,7 @@ class UIManager {
                 </div>
             </div>`;
         }
-        else if (currentStep === 'uploadComplete') {
+        else if (currentStep === 'UploadComplete') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 성공</div>
@@ -753,9 +821,6 @@ class Gallscope {
         }
         catch (err) {
             console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', err);
-            if (err.name === 'PermissionError') {
-                throw new Error('매니저 권한이 없거나 차단 페이지가 변경되었습니다. 관리자에게 문의해주세요.');
-            }
             throw err; // 다른 에러는 그대로 던져서 상위에서 처리
         }
     }
@@ -964,10 +1029,16 @@ class Gallscope {
                                 console.warn('[Gallscope] OAuth 미승인 상태로 감지됨');
                                 reject(err);
                             }
+                            else if (this.isSheetAccessDenied(html)) {
+                                const err = new Error('시트 접근 권한이 없음');
+                                err.name = 'SheetAccessDeniedError';
+                                console.warn('[Gallscope] 시트 접근 권한이 없음');
+                                reject(err);
+                            }
                             else {
-                                console.warn('[Gallscope] HTML 응답을 받았지만 상태를 식별하지 못함');
                                 const err = new Error('알 수 없는 HTML 응답을 받음');
                                 err.name = 'UnknownHtmlResponseError';
+                                console.warn('[Gallscope] HTML 응답을 받았지만 상태를 식별하지 못함');
                                 reject(err);
                             }
                         }
@@ -1009,6 +1080,11 @@ class Gallscope {
             html.includes('이 앱은 Google에서 인증되지 않았습니다') ||
             html.includes('Review Permissions') ||
             html.includes('Review Permissions');
+    }
+
+    isSheetAccessDenied(html) {
+        return html.includes('요청한 문서를 액세스할 권한이 없습니다.') ||
+            html.includes('You do not have permission to access the requested document');
     }
 }
 
