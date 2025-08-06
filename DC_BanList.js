@@ -377,7 +377,7 @@ class UIManager {
         if (document.getElementById('gallscope-styles')) return;
 
         console.log('Loading CSS from remote source...');
-        const res = await fetch('https://raw.githubusercontent.com/tristan23612/DC-ModScope/refs/heads/main/data/css.css');
+        const res = await fetch('https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css.css');
 
         if (!res.ok) throw new Error("CSS fetch failed")
         else console.log('CSS loaded successfully');
