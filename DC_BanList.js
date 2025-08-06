@@ -94,20 +94,58 @@ class ModalManager {
 
         const storedSheetId = GM_getValue('spreadsheetId', '시트 ID를 입력해주세요.');
 
-        let currentStep = 'confirm'; // confirm, parsing, readyToUpload
+        let currentStep = 'sheetIdConfirmation'; // confirm, parsing, readyToUpload
         let banList = [];
         let resultMessage = ''
         let sheetId = ''
 
         const updateContent = () => {
-            if (currentStep === 'confirm') {
+            if (currentStep === 'sheetIdConfirmation') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
+                footer.style.display = 'none';
+
+                contentDiv.querySelector('#sheetIdConfirmBtn').onclick = async () => {
+                    sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
+                    if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
+                        alert('시트 ID를 입력해주세요.');
+                        return;
+                    }
+                    GM_setValue('spreadsheetId', sheetId);
+                    currentStep = 'oauthConfirmation';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#sheetIdCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                }
+            }
+            else if (currentStep === 'oauthConfirmation') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
+
+                footer.style.display = 'none';
+                contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
+                    currentStep = 'exportConfirmation';
+                    updateContent();
+                };
+
+                contentDiv.querySelector('#oauthCancelBtn').onclick = async () => {
+                    this.hideExportBanListModal()
+                };
+            }
+            else if (currentStep === 'exportConfirmation') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
                 footer.style.display = 'none';
 
                 contentDiv.querySelector('#parseConfirmBtn').onclick = () => {
-                    currentStep = 'parsing'
+                    currentStep = 'parsing';
                     updateContent();
                 }
 
@@ -129,8 +167,15 @@ class ModalManager {
                     });
                 }).then(result => {
                     banList = result;
-                    currentStep = 'oauthConfirmation';
-                    updateContent();
+                    if (banList.length === 0) {
+                        currentStep = 'uploadComplete';
+                        resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
+                        updateContent();
+                    }
+                    else {
+                        currentStep = 'readyToUpload';
+                        updateContent();
+                    }
                 }).catch(err => {
                     console.error('[Gallscope] 수집 중 오류 발생:', err);
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -139,22 +184,6 @@ class ModalManager {
                         resultMessage: err.message || '알 수 없는 오류가 발생했습니다.'
                     });
                 });
-            }
-            else if (currentStep === 'oauthConfirmation') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
-                    sheetId: storedSheetId,
-                });
-
-                footer.style.display = 'none';
-                contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
-                    currentStep = 'readyToUpload';
-                    updateContent();
-                };
-
-                contentDiv.querySelector('#oauthCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                };
             }
             else if (currentStep === 'readyToUpload') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -165,11 +194,6 @@ class ModalManager {
                 footer.style.display = 'none';
 
                 contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
-                    sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
-                    if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
-                        alert('시트 ID를 입력해주세요.');
-                        return;
-                    }
                     currentStep = 'uploadInProgress';
                     updateContent();
                 };
@@ -185,10 +209,10 @@ class ModalManager {
                 footer.style.display = 'none';
 
                 (async () => {
-                    GM_setValue('spreadsheetId', sheetId);
                     try {
                         resultMessage = await this.#eventHandlers.sendToGoogleSheet(sheetId, banList);
                         currentStep = 'uploadComplete'
+                        console.log(`[Gallscope] 차단 내역 업로드 완료: ${resultMessage}`);
                         updateContent();
                     }
                     catch (e) {
@@ -214,7 +238,7 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
-                
+
                 contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
                     currentStep = 'readyToUpload';
                     updateContent();
@@ -386,8 +410,28 @@ class UIManager {
         } = state;
 
         let innerHTML = '';
-
-        if (currentStep === 'confirm') {
+        if (currentStep === 'sheetIdConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">기존 데이터 확인을 위해 시트 ID가 먼저 필요합니다.</div>
+                <div>구글 시트 ID를 입력해주세요.</div>
+                <div style="font-size: 13px; color: gray;">https://docs.google.com/spreadsheets/d/*/~~</div>
+                <div style="font-size: 13px; color: gray;">* 부분 문자열을 입력해주세요.</div>
+                <div style="font-size: 13px; color: gray;">공란일시 이전에 입력한 ID가 적용됩니다.</div>
+                <div style="font-size: 13px; color: gray;">변경을 원치 않으시면 바로 확인을 눌러주세요.</div>
+                <div class="sheet-id-input-group">
+                    <input type="text" id="sheetIdInput" class="sheet-id-input" 
+                        placeholder="${sheetId}"/>
+                </div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="sheetIdConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'exportConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">차단 내역을 불러오시겠습니까?</div>
@@ -396,28 +440,11 @@ class UIManager {
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
-                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button><button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
+                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
                     </div>
                 </div>
             </div>`
-        }
-        else if (currentStep === 'parsing') {
-            innerHTML = `
-            <div class="export-ban-list-modal-content">
-                <div>차단 내역을 수집 중입니다...</div>
-                <div style="font-size: 13px; color: gray;">${progressText || '시작중...'}</div>
-            </div>`;
-        }
-        else if (currentStep === 'parseError') {
-            innerHTML = `
-            <div class="export-ban-list-modal-content">
-                <div>차단 내역 수집 중 다음 오류가 발생했습니다.</div>
-                <div style="color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
-                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
-                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
-                    https://gall.dcinside.com/mini/mangonote
-                </a>
-            </div>`;
         }
         else if (currentStep === 'oauthConfirmation') {
             innerHTML = `
@@ -445,19 +472,29 @@ class UIManager {
                 </div>
             </div>`;
         }
+        else if (currentStep === 'parsing') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div>차단 내역을 수집 중입니다...</div>
+                <div style="font-size: 13px; color: gray;">${progressText || '시작중...'}</div>
+            </div>`;
+        }
+        else if (currentStep === 'parseError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div>차단 내역 수집 중 다음 오류가 발생했습니다.</div>
+                <div style="color: red;">${resultMessage || '알 수 없는 오류가 발생했습니다.'}</div>
+                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                    https://gall.dcinside.com/mini/mangonote
+                </a>
+            </div>`;
+        }
         else if (currentStep === 'readyToUpload') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">${banListLength}건의 차단내역을 구글시트에 업로드하시겠습니까?</div>
-                <div>구글 시트 ID를 입력해주세요.</div>
-                <div style="font-size: 13px; color: gray;">https://docs.google.com/spreadsheets/d/*/~~</div>
-                <div style="font-size: 13px; color: gray;">* 부분 문자열을 입력해주세요.</div>
-                <div style="font-size: 13px; color: gray;">공란일시 이전에 입력한 ID가 적용됩니다.</div>
-                <div style="font-size: 13px; color: gray;">변경을 원치 않으시면 바로 확인을 눌러주세요.</div>
-                <div class="sheet-id-input-group">
-                    <input type="text" id="sheetIdInput" class="sheet-id-input" 
-                        placeholder="${sheetId}"/>
-                </div>
+                <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
                         <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
@@ -617,85 +654,110 @@ class Gallscope {
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
         const allBanRecords = [];
 
-        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        try {
+            const sheetId = GM_getValue('spreadsheetId');
+            console.log(sheetId)
+            const result = await this.getLastKnownRecord(sheetId);
+            const lastKnownRecord = result.lastKnownRecord;
+            console.log(`[Gallscope] 마지막 차단 내역:`, lastKnownRecord);
 
-        let previousEmptyPageCount = 0;
-        for (let i = 1; i <= this.#config.CONSTANTS.MAX_BAN_LIST_PAGES_LIMIT; i += this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE) {
-            const batch = Array.from({ length: this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE }, (_, j) => i + j);
-
-            let results
-            try {
-                results = await Promise.all(batch.map(page => this.fetchBanPage(galleryId, gallType, page)));
-            } catch (err) {
-                if (err.name === 'PermissionError') {
-                    throw err; // 매니저 권한이 없을 때는 에러를 던져서 처리
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const reportProgress = (msg) => {
+                console.log(`[Gallscope] ${msg}`);
+                if (typeof progressCallback === 'function') {
+                    progressCallback(msg);
                 }
-                else {
-                    if (typeof progressCallback === 'function') {
-                        progressCallback(`페이지 ${i} 요청 중 오류 발생, 재시도합니다. ${err.message}`);
-                    }
-                    console.error(`[Gallscope] 페이지 요청 중 오류 발생: ${err}`);
-                    i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE; // 현재 페이지를 다시 시도
-                    console.warn(`[Gallscope] 페이지 ${i} 재시도합니다.`);
+            };
+
+            const isSameEntry = (a, b) => {
+                return (
+                    a.nickname === b.nickname &&
+                    a.identifier === b.identifier &&
+                    a.content === b.content &&
+                    a.reason === b.reason &&
+                    a.duration === b.duration &&
+                    a.dateTime === b.dateTime &&
+                    a.manager === b.manager
+                );
+            };
+
+            let consecutiveEmptyPageCount = 0;
+
+            const makeBatch = (start, size) => Array.from({ length: size }, (_, j) => start + j);
+            for (let i = 1; i <= this.#config.CONSTANTS.MAX_BAN_LIST_PAGES_LIMIT; i += this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE) {
+                const batch = makeBatch(i, this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE);
+
+                let results
+                try {
+                    results = await Promise.all(batch.map(page => this.fetchBanPage(galleryId, gallType, page)));
+                }
+                catch (err) {
+                    if (err.name === 'PermissionError') throw err;
+
+                    reportProgress(`페이지 ${i} 요청 중 오류 발생, 재시도합니다. ${err.message}`);
+                    i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE;
                     continue;
                 }
-            }
 
-            let isEnd = false;
-            let isMissing = false;
-            for (const result of results) {
-                if (result.status === 'empty') {
-                    if (previousEmptyPageCount > 4) {
-                        isEnd = true;
-                        break;
+                let shouldStop = false;
+                let foundAnomaly = false;
+                for (const result of results) {
+                    if (result.status === 'empty') {
+                        consecutiveEmptyPageCount++;
+                        if (consecutiveEmptyPageCount > 4) {
+                            shouldStop = true;
+                            break;
+                        }
+                    } else {
+                        if (consecutiveEmptyPageCount > 0) {
+                            foundAnomaly = true;
+                            break;
+                        }
+                        consecutiveEmptyPageCount = 0;
                     }
-                    else {
-                        previousEmptyPageCount++;
+
+                    for (const record of result.parsed) {
+                        if (isSameEntry(record, lastKnownRecord)) {
+                            reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.`);
+                            shouldStop = true;
+                            break;
+                        }
+                        allBanRecords.push(record);
                     }
-                }
-                else {
-                    if (previousEmptyPageCount > 0) {
-                        isMissing = true;
-                        break;
-                    }
+
+                    if (shouldStop) break;
+
+                    reportProgress(`페이지 ${result.page} 처리 완료 - 누적 ${allBanRecords.length}건`);
                 }
 
-                allBanRecords.push(...result.parsed);
-                console.log(`[Gallscope] ${result.page}페이지 처리 완료. 누적 ${allBanRecords.length}개`);
-
-                if (typeof progressCallback === 'function') {
-                    progressCallback(`페이지 ${result.page} 처리 완료 - 누적 ${allBanRecords.length}건`);
+                if (shouldStop) {
+                    reportProgress(`차단 내역 수집 완료 - 총 ${allBanRecords.length}건`);
+                    break;
                 }
+
+                if (foundAnomaly) {
+                    reportProgress(`비정상적인 빈 페이지 감지됨, 다시 시도해주세요.`);
+                    throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
+                }
+
+                await delay(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS);
             }
 
-            if (isEnd) {
-                console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역이 더 이상 없습니다.`);
-                if (typeof progressCallback === 'function') {
-                    progressCallback(`마지막 페이지 감지됨. 수집 종료.`);
-                }
-                break;
+            if (typeof progressCallback === 'function') {
+                progressCallback(`총 ${allBanRecords.length}건 수집 완료`);
+                await delay(2000);
             }
 
-            if (isMissing) {
-                console.log(`[Gallscope] ${galleryId} 갤러리의 차단 내역 파싱중 오류 감지.`);
-                if (typeof progressCallback === 'function') {
-                    progressCallback(`오류 감지됨. 수집 종료.`);
-                }
-                throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
-            }
-
-            await delay(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS); // 배치 쿨타임
+            console.log('[Gallscope] 최종 차단 내역:', allBanRecords);
+            return allBanRecords;
         }
-
-        if (typeof progressCallback === 'function') {
-            progressCallback(`총 ${allBanRecords.length}건 수집 완료`);
-            await delay(2000); // 마지막 메시지 표시를 위해 잠시 대기
+        catch (err) {
+            console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', err);
+            if (err.name === 'PermissionError') {
+                throw new Error('매니저 권한이 없거나 차단 페이지가 변경되었습니다. 관리자에게 문의해주세요.');
+            }
+            throw err; // 다른 에러는 그대로 던져서 상위에서 처리
         }
-
-        console.log('[Gallscope] 최종 차단 내역:', allBanRecords);
-        //this.sendToGoogleSheet(galleryId, allBanRecords);
-
-        return allBanRecords;
     }
 
     async fetchBanPage(galleryId, galleryType, page) {
@@ -731,8 +793,6 @@ class Gallscope {
             ]);
 
             // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
-            console.log(res.responseText);
-            console.log(galleryParser.baseUrl);
             if (res.responseText.includes(galleryParser.baseUrl)) {
                 console.warn(`[Gallscope] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
@@ -764,10 +824,9 @@ class Gallscope {
 
     async sendToGoogleSheet(sheetId, banList) {
         try {
-            const newBanList = await this.excludeExistingBanListData(sheetId, banList);
             return new Promise((resolve, reject) => {
-                console.log(`[Gallscope] ${newBanList.length}건의 차단 내역을 Google 스프레드시트에 업로드합니다.`);
-                if (newBanList.length === 0) {
+                console.log(`[Gallscope] ${banList.length}건의 차단 내역을 Google 스프레드시트에 업로드합니다.`);
+                if (banList.length === 0) {
                     resolve('갱신할 데이터가 없습니다.');
                 }
                 else {
@@ -781,7 +840,7 @@ class Gallscope {
                             action: 'uploadToGoogleSheet',
                             sheetId,
                             galleryId: galleryParser.galleryId,
-                            banList: newBanList,
+                            banList,
                         }),
 
                         onload: (res) => {
@@ -789,8 +848,9 @@ class Gallscope {
                                 const response = JSON.parse(res.responseText);
                                 if (response.status === 'success') {
                                     // 업로드된 데이터의 개수를 포함한 메시지 반환
-                                    const message = `${banList.length}건 중 ${newBanList.length}건의 차단 내역이 업로드되었습니다.`;
+                                    const message = `${banList.length}건의 차단 내역이 업로드되었습니다.`;
                                     console.log(message);
+                                    resolve(message);
                                 }
                                 else {
                                     console.error('Google 스프레드시트 업데이트 실패:', response.message);
@@ -867,55 +927,7 @@ class Gallscope {
         return parsedData;
     }
 
-    async excludeExistingBanListData(sheetId, banList) {
-        try {
-            const result = await this.getLastDateData(sheetId);
-            const lastDateData = result.lastDateData;
-
-            if (!lastDateData || !lastDateData.dateTime) {
-                // 기존 데이터가 없거나 날짜 정보가 없으면 전체 banList 반환
-                return banList;
-            }
-
-            // 시트에 있는 데이터와 비교하여 새로운 데이터만 필터링
-            const filtered = banList.filter(ban => {
-                const banDate = new Date(ban.dateTime.replace(/\./g, '-').replace(' ', 'T'));
-                const lastDate = new Date(lastDateData.dateTime.replace(/\./g, '-').replace(' ', 'T'));
-                return banDate >= lastDate;
-            });
-
-
-            // 2단계: 밑에서부터 lastDateData와 동일한 행 발견되면 그 이후 제거
-            const isSameEntry = (a, b) => {
-                return (
-                    a.nickname === b.nickname &&
-                    a.identifier === b.identifier &&
-                    a.content === b.content &&
-                    a.reason === b.reason &&
-                    a.duration === b.duration &&
-                    a.dateTime === b.dateTime &&
-                    a.manager === b.manager
-                );
-            };
-
-            for (let i = filtered.length - 1; i >= 0; i--) {
-                if (isSameEntry(filtered[i], lastDateData)) {
-                    console.log(`[Gallscope] 기존 차단 내역과 동일한 행 발견: ${JSON.stringify(filtered[i])}`);
-                    filtered.splice(i); // 동일한 행 제거
-                    console.log(`[Gallscope] 기존 차단 내역과 동일한 행 이후의 모든 데이터 제거`);
-                    break; // 동일한 행 이후는 모두 제거되었으므로 루프 종료
-                }
-            }
-
-            console.log(`[Gallscope] 기존 차단 내역 제외 후 ${filtered.length}건 남음`);
-            return filtered;
-        }
-        catch (err) {
-            throw err;
-        }
-    }
-
-    async getLastDateData(sheetId) {
+    async getLastKnownRecord(sheetId) {
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'POST',
@@ -924,7 +936,7 @@ class Gallscope {
                     'Content-Type': 'application/json'
                 },
                 data: JSON.stringify({
-                    action: 'getLastDateData',
+                    action: 'getLastKnownRecord',
                     sheetId,
                     galleryId: galleryParser.galleryId,
                 }),
@@ -964,8 +976,10 @@ class Gallscope {
                             const response = JSON.parse(res.responseText);
                             if (response.status === 'success') {
                                 console.log('데이터 추출 성공');
+
+                                const lastKnownRecord = response.lastKnownRecord;
                                 resolve({
-                                    lastDateData: response.lastDateData,
+                                    lastKnownRecord,
                                 });
                             } else {
                                 reject(`데이터 추출 실패: ${response.message}`);
@@ -1068,7 +1082,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyQXZvr_l4x1QISE1jYXN13lEgCEmlrjwds2OCHJoIP93-C8tb4KV77KBsutAz7kAJS/exec', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxDF5twibIjZKxjZ3ZML3G1u8V-2QEKDwYX8uoJVc5ylRgaTAdnQBVJeRBO2loYoxkG/exec', // 실제 URL로 교체
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasOauth.gif', // 실제 URL로 교체
 
     DRAG_EVENTS: {

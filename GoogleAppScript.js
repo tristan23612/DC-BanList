@@ -13,8 +13,8 @@ function doPost(e) {
     if (action === 'uploadToGoogleSheet') {
         return uploadToGoogleSheet(e);
     }
-    else if (action === 'getLastDateData') {
-        return handleGetLastDateData(e);
+    else if (action === 'getLastKnownRecord') {
+        return handleGetLastKnownRecord(e);
     }
     else {
         return ContentService.createTextOutput(
@@ -96,7 +96,7 @@ function uploadToGoogleSheet(e) {
     }
 }
 
-function handleGetLastDateData(e) {
+function handleGetLastKnownRecord(e) {
     try {
         const content = JSON.parse(e.postData.contents);
         const sheetId = content.sheetId
@@ -121,7 +121,7 @@ function handleGetLastDateData(e) {
                 JSON.stringify({
                     status: 'success',
                     lastDate: null,
-                    lastDateData: []
+                    lastKnownRecord: []
                 })
             ).setMimeType(ContentService.MimeType.JSON);
         }
@@ -134,7 +134,7 @@ function handleGetLastDateData(e) {
                 JSON.stringify({
                     status: 'success',
                     lastDate: null,
-                    lastDateData: []
+                    lastKnownRecord: []
                 })
             ).setMimeType(ContentService.MimeType.JSON);
         }
@@ -143,7 +143,7 @@ function handleGetLastDateData(e) {
         return ContentService.createTextOutput(
             JSON.stringify({
                 status: 'success',
-                lastDateData: {
+                lastKnownRecord: {
                     nickname: row[0][0] || '',
                     identifier: row[0][1] || '',
                     content: row[0][2] || '',
