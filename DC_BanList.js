@@ -1063,7 +1063,7 @@ class Gallscope {
                     }
                 },
                 onerror: (err) => {
-                    console.warn('응답 원문:', res.responseText);
+                    console.warn('응답 원문:', err.responseText);
                     console.error('요청 실패:', err);
                     reject(`요청 실패: ${err}`);
                 }
