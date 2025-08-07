@@ -141,48 +141,4 @@
     gap: 10px
 }
 
-.gallscope-modal-base .modal-footer {
-    padding: 12px 18px;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-}
-
-.gallscope-light-theme .gallscope-modal-base .modal-footer {
-    border-top: 1px solid #ddd;
-}
-
-.gallscope-dark-theme .gallscope-modal-base .modal-footer {
-    border-top: 1px solid #444549;
-}
-
-/* --- <<<< 새롭게 추가/변경된 하이라이트 스타일 시작 >>>> --- */
-
-.gallscope-light-theme {
-    --gallscope-highlight-bg: #eaf2ff;
-    /* 연한 푸른색 배경 */
-    --gallscope-highlight-border: #c0d8ff;
-    /* 살짝 진한 푸른색 테두리 */
-}
-
-.gallscope-dark-theme {
-    --gallscope-highlight-bg: rgba(100, 160, 255, 0.35);
-    /* 희미한 푸른빛 배경 */
-    --gallscope-highlight-border: rgba(120, 180, 255, 0.3);
-    /* 은은한 푸른색 테두리 */
-}
-
-.___NEW_USER_HIGHLIGHT_CLASS___ .nickname {
-    background-color: var(--gallscope-highlight-bg);
-    border: 1px solid var(--gallscope-highlight-border);
-    border-radius: 4px;
-    padding: 1px 4px;
-    margin: -2px -5px;
-    /* 패딩/테두리로 인한 레이아웃 밀림 방지 */
-    display: inline-block;
-    transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-/* --- <<<< 새롭게 추가/변경된 하이라이트 스타일 종료 >>>> --- */
-
 /* --- <<<< End of CSS for Gallscope >>>> --- */

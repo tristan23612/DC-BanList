@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          0.0.3
+// @version          0.0.2
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -374,34 +374,55 @@ class UIManager {
     }
 
     async injectStyles() {
+        if (document.getElementById('gallscope-styles')) return;
+        else {
+            console.log('Loading gallscope CSS from remote source...');
+            const res = await fetch(this.#config.GALLSCOPE_CSS_URL);
+
+            if (!res.ok) throw new Error("CSS fetch failed")
+            else console.log('CSS loaded successfully');
+
+            const cssRaw = await res.text();
+
+            const css = cssRaw
+                .replaceAll('___SCOPE_BOX_ID___', this.#config.UI.SCOPE_BOX_ID)
+                .replaceAll('___TOGGLE_BUTTON_ID___', this.#config.UI.TOGGLE_BUTTON_ID)
+                .replaceAll('___ICON_URL___', this.#config.ICON_URL)
+                .replaceAll('___USER_POSTS_MODAL_ID___', this.#config.UI.USER_POSTS_MODAL_ID)
+                .replaceAll('___AI_USER_ANALYSIS_MODAL_ID___', this.#config.UI.AI_USER_ANALYSIS_MODAL_ID)
+                .replaceAll('___SCOPE_INPUT_MODAL_ID___', this.#config.UI.SCOPE_INPUT_MODAL_ID)
+                .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
+                .replaceAll('___GRAPH_MODAL_ID___', this.#config.UI.GRAPH_MODAL_ID)
+                .replaceAll('___AI_MODAL_ID___', this.#config.UI.AI_MODAL_ID)
+                .replaceAll('___TOOLTIP_ID___', this.#config.UI.TOOLTIP_ID)
+                .replaceAll('___NEW_USER_HIGHLIGHT_CLASS___', this.#config.UI.NEW_USER_HIGHLIGHT_CLASS)
+                .replace(/\s+/g, ' ').trim();
+
+            const styleEl = document.createElement('style');
+            styleEl.id = 'gallscope-styles';
+            styleEl.textContent = css;
+            document.head.appendChild(styleEl);
+        }
+
         if (document.getElementById('dc-banlist-styles')) return;
+        else {
+            console.log('Loading dcbanlist CSS from remote source...');
+            const res = await fetch(this.#config.DCBANLIST_CSS_URL);
 
-        console.log('Loading CSS from remote source...');
-        const res = await fetch('https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css.css');
+            if (!res.ok) throw new Error("CSS fetch failed")
+            else console.log('CSS loaded successfully');
 
-        if (!res.ok) throw new Error("CSS fetch failed")
-        else console.log('CSS loaded successfully');
+            const cssRaw = await res.text();
 
-        const cssRaw = await res.text();
+            const css = cssRaw
+                .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
+                .replace(/\s+/g, ' ').trim();
 
-        const css = cssRaw
-            .replaceAll('___SCOPE_BOX_ID___', this.#config.UI.SCOPE_BOX_ID)
-            .replaceAll('___TOGGLE_BUTTON_ID___', this.#config.UI.TOGGLE_BUTTON_ID)
-            .replaceAll('___ICON_URL___', this.#config.ICON_URL)
-            .replaceAll('___USER_POSTS_MODAL_ID___', this.#config.UI.USER_POSTS_MODAL_ID)
-            .replaceAll('___AI_USER_ANALYSIS_MODAL_ID___', this.#config.UI.AI_USER_ANALYSIS_MODAL_ID)
-            .replaceAll('___SCOPE_INPUT_MODAL_ID___', this.#config.UI.SCOPE_INPUT_MODAL_ID)
-            .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
-            .replaceAll('___GRAPH_MODAL_ID___', this.#config.UI.GRAPH_MODAL_ID)
-            .replaceAll('___AI_MODAL_ID___', this.#config.UI.AI_MODAL_ID)
-            .replaceAll('___TOOLTIP_ID___', this.#config.UI.TOOLTIP_ID)
-            .replaceAll('___NEW_USER_HIGHLIGHT_CLASS___', this.#config.UI.NEW_USER_HIGHLIGHT_CLASS)
-            .replace(/\s+/g, ' ').trim();
-
-        const styleEl = document.createElement('style');
-        styleEl.id = 'dc-banlist-styles';
-        styleEl.textContent = css;
-        document.head.appendChild(styleEl);
+            const styleEl = document.createElement('style');
+            styleEl.id = 'dc-banlist-styles';
+            styleEl.textContent = css;
+            document.head.appendChild(styleEl);
+        }
     }
 
     injectExportBanListButton() {
@@ -1161,8 +1182,10 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz_Nw-Itlu4vxvlt_JWI1uvtcCRnnMGvDZrN8yPDroOVmH4ETkx8OWmCf9wfAWL_bTf/exec', // 실제 URL로 교체
-    APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasOauth.gif', // 실제 URL로 교체
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz_Nw-Itlu4vxvlt_JWI1uvtcCRnnMGvDZrN8yPDroOVmH4ETkx8OWmCf9wfAWL_bTf/exec',
+    APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasOauth.gif',
+    GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/gallscope.css',
+    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/dcbanlist.css',
 
     DRAG_EVENTS: {
         START: 'mousedown',
