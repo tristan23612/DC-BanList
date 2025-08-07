@@ -7,14 +7,16 @@
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
-    "@semantic-release/github"
-  ],
-  "github": {
-    "assets": [
+    [
+      "@semantic-release/github",
       {
-        "path": "DC_BanList.js",
-        "label": "DC_BanList.js"
+        "assets": [
+          {
+            "path": "DC_BanList.js",
+            "label": "DC_BanList.js"
+          }
+        ]
       }
     ]
-  }
+  ]
 }
