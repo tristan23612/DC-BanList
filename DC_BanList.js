@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.0.5-dev.1
+// @version          1.1.0-dev
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -1181,7 +1181,7 @@ const config = {
     AI_SUMMARY_FEATURE_ENABLED: true,
     ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
     CHARTJS_CDN_URL: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz_Nw-Itlu4vxvlt_JWI1uvtcCRnnMGvDZrN8yPDroOVmH4ETkx8OWmCf9wfAWL_bTf/exec',
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
     GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/gallscope.css',
     DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/dcbanlist.css',
