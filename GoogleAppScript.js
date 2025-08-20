@@ -1,12 +1,9 @@
 // GoogleAppScript.js
-// Google Apps Script for handling POST requests and writing to Google Sheets
 // This script is designed to work with the DC_BanList extension to log blocked users.
-// Replace YOUR_SPREADSHEET_ID_HERE with your actual Google Spreadsheet ID.
-// Ensure you have the necessary permissions to run this script and access the spreadsheet.
-// Make sure to set up the Google Apps Script project with the necessary scopes and permissions.
-// This script should be deployed as a web app to handle POST requests.
+// It handles requests to upload ban lists to a Google Sheet and retrieve the last known record.
+// GitHub: https://github.com/tristan23612/DC-BanList
 
-// Visit https://script.google.com/ to create a new project and paste this code.
+// Visit https://script.google.com/ to create an own new project and paste this code.
 
 function doPost(e) {
     const action = JSON.parse(e.postData.contents).action;
@@ -64,7 +61,7 @@ function uploadToGoogleSheet(e) {
 
         Logger.log("uploadToGoogleSheet called");
         Logger.log("갤ID: " + galleryId);
-        Logger.log("데이터 길이:", banList.length);
+        Logger.log("데이터 길이: " + banList.length);
 
         // 헤더 아래에 삽입
         sheet.insertRowsBefore(2, banList.length);
@@ -124,24 +121,24 @@ function handleGetLastKnownRecord(e) {
             return ContentService.createTextOutput(
                 JSON.stringify({
                     status: 'success',
-                    lastDate: null,
                     lastKnownRecord: []
                 })
             ).setMimeType(ContentService.MimeType.JSON);
         }
 
-        // 시트의 가장 2행 데이터 가져오기
+        // 시트의 2행 데이터 가져오기
         const row = sheet.getRange(2, 1, 1, 7).getValues();
         if (row.length === 0 || row[0].length === 0) {
             // 데이터가 없으면 빈 데이터 반환
             return ContentService.createTextOutput(
                 JSON.stringify({
                     status: 'success',
-                    lastDate: null,
                     lastKnownRecord: []
                 })
             ).setMimeType(ContentService.MimeType.JSON);
         }
+
+        Logger.log("가져온 데이터: " + JSON.stringify(row));
 
         //row 반환
         return ContentService.createTextOutput(
