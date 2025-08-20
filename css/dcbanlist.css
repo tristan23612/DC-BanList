@@ -141,4 +141,10 @@
     gap: 10px
 }
 
+#gallscopeExportBanListContainer {
+    display: inline-flex;
+    margin-top: 5px;
+    vertical-align: top !important;
+}
+
 /* --- <<<< End of CSS for Gallscope >>>> --- */
