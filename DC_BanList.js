@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.1.0-dev.1
+// @version          1.1.0-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -29,13 +29,15 @@ class ModalManager {
     #config;
     #state;
     #eventHandlers;
+    #log;
     #uiManager;
     #exportBanListModal;
 
-    constructor(config, state, eventHandlers, uiManager) {
+    constructor(config, state, eventHandlers, log, uiManager) {
         this.#config = config;
         this.#state = state;
         this.#eventHandlers = eventHandlers;
+        this.#log = log || (() => { });
         this.#uiManager = uiManager;
         this.#exportBanListModal = null;
     }
@@ -111,6 +113,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
+                this.#log('ModalManager', 'Entered SheetIdConfirmation step of the export ban list modal.');
+
                 contentDiv.querySelector('#sheetIdConfirmBtn').onclick = async () => {
                     sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
                     if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
@@ -118,6 +122,8 @@ class ModalManager {
                         return;
                     }
                     GM_setValue('spreadsheetId', sheetId);
+                    this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
+
                     currentStep = 'OAuthConfirmation';
                     updateContent();
                 };
@@ -131,6 +137,8 @@ class ModalManager {
                     currentStep: currentStep,
                     sheetId: storedSheetId,
                 });
+
+                this.#log('ModalManager', 'Entered OAuthConfirmation step of the export ban list modal.');
 
                 footer.style.display = 'none';
                 contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
@@ -148,6 +156,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
+                this.#log('ModalManager', 'Entered ExportConfirmation step of the export ban list modal.');
+
                 contentDiv.querySelector('#parseConfirmBtn').onclick = () => {
                     currentStep = 'Parsing';
                     updateContent();
@@ -164,6 +174,9 @@ class ModalManager {
                     progressText,
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered Parsing step of the export ban list modal.');
+
                 this.#eventHandlers.onStartParsing((progressMsg) => {
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                         currentStep: 'Parsing',
@@ -174,10 +187,12 @@ class ModalManager {
                     if (banList.length === 0) {
                         currentStep = 'UploadComplete';
                         resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
+                        this.#log('ModalManager', 'No new ban list found, skipping upload.');
                         updateContent();
                     }
                     else {
                         currentStep = 'ReadyToUpload';
+                        this.#log('ModalManager', `Found ${banList.length} new ban list entries, ready to upload.`);
                         updateContent();
                     }
                 }).catch(err => {
@@ -216,6 +231,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
+                this.#log('ModalManager', 'Entered ReadyToUpload step of the export ban list modal.');
+
                 contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
                     currentStep = 'UploadInProgress';
                     updateContent();
@@ -230,6 +247,8 @@ class ModalManager {
                     currentStep,
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered UploadInProgress step of the export ban list modal.');
 
                 (async () => {
                     try {
@@ -266,6 +285,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
+                this.#log('ModalManager', 'Entered NotLoggedInError step of the export ban list modal.');
+
                 contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
                     currentStep = 'SheetIdConfirmation';
                     updateContent();
@@ -282,6 +303,8 @@ class ModalManager {
                 });
                 footer.style.display = 'none';
 
+                this.#log('ModalManager', 'Entered OAuthUnauthorizedError step of the export ban list modal.');
+
                 contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
                     currentStep = 'SheetIdConfirmation';
                     updateContent();
@@ -297,6 +320,9 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered SheetAccessDeniedError step of the export ban list modal.');
+
                 contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
                     currentStep = 'SheetIdConfirmation';
                     updateContent();
@@ -311,6 +337,8 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered UploadError step of the export ban list modal.');
 
                 contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
                     currentStep = 'ReadyToUpload';
@@ -327,6 +355,8 @@ class ModalManager {
                     resultMessage
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered UploadComplete step of the export ban list modal.');
             }
             else {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -334,6 +364,8 @@ class ModalManager {
                     resultMessage
                 });
                 footer.style.display = 'none';
+
+                this.#log('ModalManager', 'Entered an unknown step of the export ban list modal: ' + currentStep);
             }
 
             const copyBtn = contentDiv.querySelector('#copyLogsBtn');
@@ -705,6 +737,7 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 성공</div>
                 <div>${resultMessage}</div>
+                <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
                         <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
@@ -762,7 +795,7 @@ class Gallscope {
         const eventHandlers = this.#createEventHandlers();
 
         this.#uiManager = new UIManager(config, state, eventHandlers, this.#utils.log);
-        this.#modalManager = new ModalManager(config, state, eventHandlers, this.#uiManager);
+        this.#modalManager = new ModalManager(config, state, eventHandlers, this.#utils.log, this.#uiManager);
     }
 
     async init() {
@@ -790,9 +823,7 @@ class Gallscope {
             this.#utils.log('Core', '차단 내역 수집 시작', { galleryId, gallType, sheetId });
             const result = await this.getLastKnownRecord(sheetId);
             const lastKnownRecord = result.lastKnownRecord;
-            this.#utils.log('Core', '마지막 차단 내역', lastKnownRecord);
 
-            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const reportProgress = (msg) => {
                 this.#utils.log('Core', msg);
                 if (typeof progressCallback === 'function') {
@@ -870,7 +901,7 @@ class Gallscope {
                     reportProgress(`비정상적인 빈 페이지 감지됨, 다시 시도해주세요.`);
                     throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
                 }
-                
+
                 await this.#utils.sleep(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS);
             }
 
@@ -1252,10 +1283,12 @@ const state = {
 
 const utils = {
     log: (context, ...messages) => {
-        const msg = `[DC-BanList]${context ? `[${context}]` : ''} ${messages.join(' ')}`;
+        const msg = `[DC-BanList]${context ? `[${context}]` : ''} ${messages.map(m =>
+            typeof m === 'object' ? JSON.stringify(m) : m
+        ).join(' ')}`;
+
         if (config.DEBUG_MODE) console.log(msg);
 
-        // 로그를 state.exportLogs에 쌓기
         state.exportLogs.push(msg);
     },
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
