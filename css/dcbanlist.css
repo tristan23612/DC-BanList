@@ -17,6 +17,12 @@
     border: 1px solid #ddd;
 }
 
+.gallscope-light-theme .copy-logs-btn {
+    background-color: #f1f3f5;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
 .gallscope-dark-theme #___EXPORT_BAN_LIST_MODAL_ID___ .sheet-id-input {
     border-color: #555;
 }
@@ -27,6 +33,12 @@
 }
 
 .gallscope-dark-theme .modal-cancel-btn {
+    background-color: #495057;
+    color: #f1f3f5;
+    border: 1px solid #5a6268;
+}
+
+.gallscope-dark-theme .copy-logs-btn {
     background-color: #495057;
     color: #f1f3f5;
     border: 1px solid #5a6268;
@@ -87,13 +99,18 @@
 }
 
 .modal-confirm-btn,
-.modal-cancel-btn {
+.modal-cancel-btn,
+.copy-logs-btn {
     padding: 8px 16px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-weight: 500;
     transition: background-color .2s ease;
+}
+
+.copy-logs-btn {
+    margin-right: auto;
 }
 
 .gallscope-light-theme .modal-confirm-btn:hover {
@@ -104,11 +121,19 @@
     background-color: #e9ecef;
 }
 
+.gallscope-light-theme .copy-logs-btn:hover {
+    background-color: #e9ecef;
+}
+
 .gallscope-dark-theme .modal-confirm-btn:hover {
     background-color: #0b5ed7;
 }
 
 .gallscope-dark-theme .modal-cancel-btn:hover {
+    background-color: #5a6268;
+}
+
+.gallscope-dark-theme .copy-logs-btn:hover {
     background-color: #5a6268;
 }
 
