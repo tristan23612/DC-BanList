@@ -21,6 +21,7 @@
 // @grant            GM_deleteValue
 // @run-at           document-end
 // @license          MIT
+// @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
 // @updateURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
 // ==/UserScript==
@@ -737,6 +738,9 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 성공</div>
                 <div>${resultMessage}</div>
+                <a href="${sheetId}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                    구글 시트로 이동
+                </a>
                 <div><br></div>
                 <div class="export-ban-list-modal-footer">
                     <div class="modal-buttons">
@@ -941,6 +945,7 @@ class Gallscope {
                         url,
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                         },
                         onload: resolve,
                         onerror: reject,
@@ -1250,7 +1255,7 @@ class PostParser {
 
 const config = {
     DEBUG_MODE: true,
-    ICON_URL: 'https://pbs.twimg.com/media/GmykGIJbAAA98q1.png:orig',
+    ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
     GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/gallscope.css',
