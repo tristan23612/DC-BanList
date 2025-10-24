@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.3-release
+// @version          1.2.4-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -353,6 +353,7 @@ class ModalManager {
             else if (currentStep === 'UploadComplete') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep: currentStep,
+                    sheetId: storedSheetId,
                     resultMessage
                 });
                 footer.style.display = 'none';
