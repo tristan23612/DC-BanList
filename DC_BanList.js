@@ -738,7 +738,7 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">업로드 성공</div>
                 <div>${resultMessage}</div>
-                <a href="${sheetId}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                <a href="https://docs.google.com/spreadsheets/d/${sheetId}" target="_blank" style="font-size: 13px; color: #007BFF;">
                     구글 시트로 이동
                 </a>
                 <div><br></div>
