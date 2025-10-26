@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name             DC_BanList_dev
-// @name:ko          디시인사이드 차단 내역 관리
+// @name:ko          디시인사이드 차단 내역 관리-dev
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.5-dev.2
+// @version          1.2.5-dev.3
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -52,7 +52,7 @@ class ModalManager {
     }
 
     #_createModal(id, title) {
-        const modal = this.#createAndAppendElement('div', id, 'gallscope-modal-base');
+        const modal = this.#createAndAppendElement('div', id, 'dcBanList-modal-base');
         modal.innerHTML = `
             <div class="modal-header">
                 <div class="modal-title"><img src="${this.#config.ICON_URL}" class="modal-icon"><span>${title}</span></div>
@@ -197,7 +197,7 @@ class ModalManager {
                         updateContent();
                     }
                 }).catch(err => {
-                    console.error('[Gallscope] 수집 중 오류 발생:', err);
+                    console.error('[DC-BanList] 수집 중 오류 발생:', err);
                     if (err.name === 'PermissionError') {
                         currentStep = 'PermissionError';
                         resultMessage = err.message;
@@ -218,8 +218,8 @@ class ModalManager {
                     else {
                         currentStep = 'ParseError';
                         resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
-                        console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', resultMessage);
-                        this.#eventHandlers.log(`[Gallscope] 차단 내역 수집 중 오류 발생: ${resultMessage}`);
+                        console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', resultMessage);
+                        this.#eventHandlers.log(`[DC-BanList] 차단 내역 수집 중 오류 발생: ${resultMessage}`);
                         updateContent();
                     }
                 });
@@ -418,41 +418,11 @@ class UIManager {
 
     updateTheme() {
         const isDark = this.isDarkMode();
-        document.body.classList.toggle('gallscope-dark-theme', isDark);
-        document.body.classList.toggle('gallscope-light-theme', !isDark);
+        document.body.classList.toggle('dcBanList-dark-theme', isDark);
+        document.body.classList.toggle('dcBanList-light-theme', !isDark);
     }
 
     async injectStyles() {
-        if (!document.getElementById('gallscope-styles')) {
-            this.#log(`UI`, 'gallscope-styles not found, injecting styles...');
-            this.#log(`UI`, 'Loading gallscope CSS from remote source...');
-            const res = await fetch(this.#config.GALLSCOPE_CSS_URL);
-
-            if (!res.ok) throw new Error("CSS fetch failed")
-            else this.#log(`UI`, 'Gallscope CSS loaded successfully');
-
-            const cssRaw = await res.text();
-
-            const css = cssRaw
-                .replaceAll('___SCOPE_BOX_ID___', this.#config.UI.SCOPE_BOX_ID)
-                .replaceAll('___TOGGLE_BUTTON_ID___', this.#config.UI.TOGGLE_BUTTON_ID)
-                .replaceAll('___ICON_URL___', this.#config.ICON_URL)
-                .replaceAll('___USER_POSTS_MODAL_ID___', this.#config.UI.USER_POSTS_MODAL_ID)
-                .replaceAll('___AI_USER_ANALYSIS_MODAL_ID___', this.#config.UI.AI_USER_ANALYSIS_MODAL_ID)
-                .replaceAll('___SCOPE_INPUT_MODAL_ID___', this.#config.UI.SCOPE_INPUT_MODAL_ID)
-                .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
-                .replaceAll('___GRAPH_MODAL_ID___', this.#config.UI.GRAPH_MODAL_ID)
-                .replaceAll('___AI_MODAL_ID___', this.#config.UI.AI_MODAL_ID)
-                .replaceAll('___TOOLTIP_ID___', this.#config.UI.TOOLTIP_ID)
-                .replaceAll('___NEW_USER_HIGHLIGHT_CLASS___', this.#config.UI.NEW_USER_HIGHLIGHT_CLASS)
-                .replace(/\s+/g, ' ').trim();
-
-            const styleEl = document.createElement('style');
-            styleEl.id = 'gallscope-styles';
-            styleEl.textContent = css;
-            document.head.appendChild(styleEl);
-        }
-
         if (document.getElementById('dc-banlist-styles')) return;
         else {
             this.#log(`UI`, 'dc-banlist-styles not found, injecting styles...');
@@ -487,17 +457,17 @@ class UIManager {
         }
         if (!leftContainer) return; // 못 찾으면 종료
 
-        if (document.getElementById('gallscopeExportBanListContainer')) return;
+        if (document.getElementById('dcBanListExportBanListContainer')) return;
 
         const container = document.createElement('div');
-        container.id = 'gallscopeExportBanListContainer';
+        container.id = 'dcBanListExportBanListContainer';
         container.style.cssText = `
             display: inline-flex;
             align-items: center;
             margin-left: 10px;
         `;
         container.innerHTML = `
-            <button id="gallscopeExportBanListBtn"
+            <button id="dcBanListExportBanListBtn"
                     class="modal-confirm-btn"
                     style="padding:4px 8px; font-size:13px;"
                     title="차단 목록을 콘솔에 출력">
@@ -506,7 +476,7 @@ class UIManager {
         `;
         leftContainer.appendChild(container);
 
-        document.getElementById('gallscopeExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onShowExportBanListModal());
+        document.getElementById('dcBanListExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onShowExportBanListModal());
 
         this.#log(`UI`, '차단 내역 내보내기 버튼을 페이지에 삽입했습니다.');
     }
@@ -780,12 +750,12 @@ class UIManager {
 
     updateTheme() {
         const isDark = this.isDarkMode();
-        document.body.classList.toggle('gallscope-dark-theme', isDark);
-        document.body.classList.toggle('gallscope-light-theme', !isDark);
+        document.body.classList.toggle('dcBanList-dark-theme', isDark);
+        document.body.classList.toggle('dcBanList-light-theme', !isDark);
     }
 }
 
-class Gallscope {
+class DCBanList{
     #config;
     #state;
     #utils;
@@ -904,7 +874,7 @@ class Gallscope {
 
                 if (foundAnomaly) {
                     reportProgress(`비정상적인 빈 페이지 감지됨, 다시 시도해주세요.`);
-                    throw new Error(`[Gallscope] 비정상적인 빈 페이지 감지됨`);
+                    throw new Error(`[DC-BanList] 비정상적인 빈 페이지 감지됨`);
                 }
 
                 await this.#utils.sleep(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS);
@@ -919,7 +889,7 @@ class Gallscope {
             return allBanRecords;
         }
         catch (err) {
-            console.error('[Gallscope] 차단 내역 수집 중 오류 발생:', err);
+            console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', err);
             throw err;
         }
     }
@@ -959,7 +929,7 @@ class Gallscope {
 
             // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
             if (res.responseText.includes(galleryParser.baseUrl)) {
-                console.warn(`[Gallscope] 차단 페이지에서 리디렉션 감지됨`);
+                console.warn(`[DC-BanList] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
                 err.name = 'PermissionError';
                 throw err;
@@ -1116,29 +1086,29 @@ class Gallscope {
                             contentType?.includes('text/html')
                         ) {
                             const html = res.responseText;
-                            console.warn('[Gallscope] HTML 응답을 받음:', html);
+                            console.warn('[DC-BanList] HTML 응답을 받음:', html);
                             if (this.isNotLoggedIn(html)) {
                                 const err = new Error('로그인되지 않은 상태로 감지됨');
                                 err.name = 'NotLoggedInError';
-                                console.warn('[Gallscope] 로그인되지 않은 상태로 감지됨');
+                                console.warn('[DC-BanList] 로그인되지 않은 상태로 감지됨');
                                 reject(err);
                             }
                             else if (this.isOAuthUnauthorized(html)) {
                                 const err = new Error('OAuth 미승인 상태로 감지됨');
                                 err.name = 'OAuthUnauthorizedError';
-                                console.warn('[Gallscope] OAuth 미승인 상태로 감지됨');
+                                console.warn('[DC-BanList] OAuth 미승인 상태로 감지됨');
                                 reject(err);
                             }
                             else if (this.isSheetAccessDenied(html)) {
                                 const err = new Error('시트 접근 권한이 없음');
                                 err.name = 'SheetAccessDeniedError';
-                                console.warn('[Gallscope] 시트 접근 권한이 없음');
+                                console.warn('[DC-BanList] 시트 접근 권한이 없음');
                                 reject(err);
                             }
                             else {
                                 const err = new Error('알 수 없는 HTML 응답을 받음');
                                 err.name = 'UnknownHtmlResponseError';
-                                console.warn('[Gallscope] HTML 응답을 받았지만 상태를 식별하지 못함');
+                                console.warn('[DC-BanList] HTML 응답을 받았지만 상태를 식별하지 못함');
                                 reject(err);
                             }
                         }
@@ -1259,11 +1229,10 @@ const config = {
     ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
-    GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/dev/css/gallscope.css',
     DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/dev/css/dcbanlist.css',
 
     UI: {
-        EXPORT_BAN_LIST_MODAL_ID: 'gallscopeExportBanListModal',
+        EXPORT_BAN_LIST_MODAL_ID: 'dcBanListExportBanListModal',
     },
 
     CONSTANTS: {
@@ -1300,7 +1269,7 @@ await galleryParser.init();
 
     'use strict';
 
-    const gallscope = new Gallscope(
+    const dcBanList = new DCBanList(
         config,
         state,
         utils,
@@ -1308,5 +1277,5 @@ await galleryParser.init();
         ModalManager
     );
 
-    await gallscope.init();
+    await dcBanList.init();
 })();
