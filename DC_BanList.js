@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리-dev
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.5-dev.3
+// @version          1.2.5-dev.6
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
