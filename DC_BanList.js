@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name             DC_BanList_dev
-// @name:ko          디시인사이드 차단 내역 관리-dev
+// @name             DC_BanList
+// @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.5-dev.6
+// @version          1.2.5-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -1229,7 +1229,7 @@ const config = {
     ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
-    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/dev/css/dcbanlist.css',
+    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/dcbanlist.css',
 
     UI: {
         EXPORT_BAN_LIST_MODAL_ID: 'dcBanListExportBanListModal',
