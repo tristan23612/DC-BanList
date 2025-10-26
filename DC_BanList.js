@@ -1259,19 +1259,10 @@ const config = {
     ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
-    GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/gallscope.css',
-    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/dcbanlist.css',
+    GALLSCOPE_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/dev/css/gallscope.css',
+    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/dev/css/dcbanlist.css',
 
     UI: {
-        SCOPE_BOX_ID: 'gallscopeBox',
-        TOOLTIP_ID: 'gallscopeTooltip',
-        AI_MODAL_ID: 'gallscopeAIModal',
-        SCOPE_INPUT_MODAL_ID: 'gallscopeScopeInputModal',
-        GRAPH_MODAL_ID: 'gallscopeGraphModal',
-        USER_POSTS_MODAL_ID: 'gallscopeUserPostsModal',
-        AI_USER_ANALYSIS_MODAL_ID: 'gallscopeAIUserAnalysisModal',
-        TOGGLE_BUTTON_ID: 'gallscope-toggle-btn',
-        NEW_USER_HIGHLIGHT_CLASS: 'gallscope-new-user-highlight',
         EXPORT_BAN_LIST_MODAL_ID: 'gallscopeExportBanListModal',
     },
 
