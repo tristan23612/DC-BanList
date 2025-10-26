@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name             DC_BanList
+// @name             DC_BanList_dev
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
