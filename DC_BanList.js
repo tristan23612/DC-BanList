@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.5-release
+// @version          1.2.6-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -13,6 +13,7 @@
 // @exclude          https://m.dcinside.com/board/*/*
 // @exclude          https://m.dcinside.com/mini/*/*
 // @grant            GM_xmlhttpRequest
+// @grant            GM_getResourceText
 // @grant            GM_setValue
 // @grant            GM_getValue
 // @grant            GM_registerMenuCommand
@@ -20,6 +21,7 @@
 // @grant            GM_listValues
 // @grant            GM_deleteValue
 // @run-at           document-end
+// @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/DC_BanList.css
 // @license          MIT
 // @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
@@ -422,17 +424,14 @@ class UIManager {
         document.body.classList.toggle('dcBanList-light-theme', !isDark);
     }
 
-    async injectStyles() {
+    injectStyles() {
         if (document.getElementById('dc-banlist-styles')) return;
         else {
             this.#log(`UI`, 'dc-banlist-styles not found, injecting styles...');
-            this.#log(`UI`, 'Loading DC-Banlist CSS from remote source...');
-            const res = await fetch(this.#config.DCBANLIST_CSS_URL);
 
-            if (!res.ok) throw new Error("CSS fetch failed")
+            const cssRaw = GM_getResourceText('cssRaw');
+            if (!cssRaw) throw new Error("CSS fetch failed")
             else this.#log(`UI`, 'DC-Banlist CSS loaded successfully');
-
-            const cssRaw = await res.text();
 
             const css = cssRaw
                 .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
@@ -773,8 +772,8 @@ class DCBanList{
         this.#modalManager = new ModalManager(config, state, eventHandlers, this.#utils.log, this.#uiManager);
     }
 
-    async init() {
-        await this.#uiManager.injectStyles();
+    init() {
+        this.#uiManager.injectStyles();
         this.#uiManager.updateTheme();
         this.#uiManager.injectExportBanListButton();
     }
@@ -1229,7 +1228,6 @@ const config = {
     ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
-    DCBANLIST_CSS_URL: 'https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/dcbanlist.css',
 
     UI: {
         EXPORT_BAN_LIST_MODAL_ID: 'dcBanListExportBanListModal',
@@ -1262,13 +1260,12 @@ const utils = {
 
 const isMobile = location.hostname === 'm.dcinside.com';
 const galleryParser = new PostParser();
-await galleryParser.init();
 
 (async () => {
     // --- Script Entry Point ---
-
+    
     'use strict';
-
+    
     const dcBanList = new DCBanList(
         config,
         state,
@@ -1276,6 +1273,7 @@ await galleryParser.init();
         UIManager,
         ModalManager
     );
-
-    await dcBanList.init();
+    
+    dcBanList.init();
+    await galleryParser.init();
 })();
