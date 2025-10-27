@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.6-release
+// @version          1.2.7-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -21,7 +21,7 @@
 // @grant            GM_listValues
 // @grant            GM_deleteValue
 // @run-at           document-end
-// @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/DC_BanList.css
+// @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/css/DC_BanList.css
 // @license          MIT
 // @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
