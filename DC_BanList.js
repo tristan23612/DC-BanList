@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.2.7-release
+// @version          1.2.8-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -927,7 +927,7 @@ class DCBanList{
             ]);
 
             // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
-            if (res.responseText.includes(galleryParser.baseUrl)) {
+            if (!res.responseText.includes('class="minor_uadmin_wrap clear')) {
                 console.warn(`[DC-BanList] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
                 err.name = 'PermissionError';
@@ -952,7 +952,7 @@ class DCBanList{
                 }
             }
         } catch (err) {
-            throw err; // 에러를 그대로 던져서 상위에서 처리
+            throw err;
         }
     }
 
