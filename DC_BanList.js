@@ -12,6 +12,7 @@
 // @match            https://m.dcinside.com/mini*
 // @exclude          https://m.dcinside.com/board/*/*
 // @exclude          https://m.dcinside.com/mini/*/*
+// @connect          *
 // @grant            GM_xmlhttpRequest
 // @grant            GM_getResourceText
 // @grant            GM_setValue
@@ -22,6 +23,7 @@
 // @grant            GM_deleteValue
 // @run-at           document-end
 // @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/css/DC_BanList.css
+// @resource         urlConfig https://raw.githubusercontent.com/tristan23612/DC-BanList/main/urlConfig.json
 // @license          MIT
 // @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
@@ -927,7 +929,7 @@ class DCBanList{
             ]);
 
             // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
-            if (!res.responseText.includes('class="minor_uadmin_wrap clear')) {
+            if (!res.responseText.includes('minor_admin')) {
                 console.warn(`[DC-BanList] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
                 err.name = 'PermissionError';
@@ -1223,11 +1225,13 @@ class PostParser {
     }
 }
 
+const urlConfig = JSON.parse(GM_getResourceText('urlConfig'));
+
 const config = {
     DEBUG_MODE: true,
-    ICON_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true',
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0FvJTqf1IH2iQtawddLer2VFBICjW0Rwffbx33ZK89OAfeudNTq5Q2bl0UTXR1QNV/exec',
-    APPS_SCRIPT_AUTH_DEMONSTRATION_URL: 'https://github.com/tristan23612/DC-BanList/blob/main/GasAuth.gif',
+    ICON_URL: urlConfig.iconUrl,
+    APPS_SCRIPT_URL: urlConfig.appsScriptUrl,
+    APPS_SCRIPT_AUTH_DEMONSTRATION_URL: urlConfig.appsScriptAuthDemonstrationUrl,
 
     UI: {
         EXPORT_BAN_LIST_MODAL_ID: 'dcBanListExportBanListModal',

@@ -80,6 +80,9 @@ function uploadToGoogleSheet(e) {
         // 시트 (1,1) 위치부터 입력
         sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
 
+        // 열 단위 보호 설정
+        protectColumns(sheet, [1, 2, 3, 4, 5, 6, 7]); // 모든 열 보호
+
         return ContentService.createTextOutput(
             JSON.stringify({
                 status: 'success'
@@ -164,4 +167,25 @@ function handleGetLastKnownRecord(e) {
             })
         ).setMimeType(ContentService.MimeType.JSON);
     }
+}
+
+// 열 단위 보호 설정 함수
+function protectColumns(sheet, columnNumbers) {
+    // 기존 보호 해제
+    const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+    for (let protection of protections) {
+        protection.remove();
+    }
+
+    const lastRow = sheet.getLastRow();
+    const maxColumns = sheet.getMaxColumns();
+
+    // 각 열을 보호
+    columnNumbers.forEach(col => {
+        if (col > 0 && col <= maxColumns) {
+            const range = sheet.getRange(1, col, lastRow, 1);
+            const protection = range.protect();
+            protection.setDescription(`Column ${col} Protection`);
+        }
+    });
 }
