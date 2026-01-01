@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.3.2-release
+// @version          1.4.0-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -23,7 +23,7 @@
 // @grant            GM_deleteValue
 // @run-at           document-end
 // @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/css/DC_BanList.css
-// @resource         urlConfig https://raw.githubusercontent.com/tristan23612/DC-BanList/main/urlConfig.json
+// @resource         urlConfig https://raw.githubusercontent.com/tristan23612/DC-BanList/main/UrlConfig.json
 // @license          MIT
 // @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
@@ -107,6 +107,7 @@ class ModalManager {
         let banList = [];
         let resultMessage = ''
         let sheetId = ''
+        let lastKnownRecord = null;
 
         this.#state.exportLogs = [];
 
@@ -129,13 +130,58 @@ class ModalManager {
                     GM_setValue('spreadsheetId', sheetId);
                     this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
 
-                    currentStep = 'OAuthConfirmation';
+                    currentStep = 'GettingLastKnownRecord';
                     updateContent();
                 };
 
                 contentDiv.querySelector('#sheetIdCancelBtn').onclick = async () => {
                     this.hideExportBanListModal()
                 }
+            }
+            else if (currentStep === 'GettingLastKnownRecord') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered GettingLastKnownRecord step of the export ban list modal.');
+
+                this.#eventHandlers.getLastKnownRecord(sheetId).then(result => {
+                    lastKnownRecord = result.lastKnownRecord;
+                    this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length == 0 ? '없음' : lastKnownRecord}`);
+                    if (lastKnownRecord.length == 0) {
+                        currentStep = 'CreateSheetConfirmation';
+                        updateContent();
+                    }
+                    else {
+                        currentStep = 'OAuthConfirmation';
+                        updateContent();
+                    }
+                }).catch(err => {
+                    console.error('[DC-BanList] 기존 데이터 확인 중 오류 발생:', err);
+                    currentStep = 'SheetIdConfirmation';
+                    resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
+                    this.#eventHandlers.log(`[DC-BanList] 기존 데이터 확인 중 오류 발생: ${resultMessage}`);
+                    updateContent();
+                });
+            }
+            else if (currentStep === 'CreateSheetConfirmation') {
+                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep: currentStep,
+                    sheetId: storedSheetId,
+                });
+
+                this.#log('ModalManager', 'Entered CreateSheetConfirmation step of the export ban list modal.');
+
+                footer.style.display = 'none';
+                contentDiv.querySelector('#createSheetConfirmBtn').onclick = async () => {
+                    currentStep = 'OAuthConfirmation';
+                    updateContent();
+                };
+                contentDiv.querySelector('#createSheetCancelBtn').onclick = async () => {
+                    currentStep = 'SheetIdConfirmation';
+                    updateContent();
+                };
             }
             else if (currentStep === 'OAuthConfirmation') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -514,6 +560,29 @@ class UIManager {
                 </div>
             </div>`;
         }
+        else if (currentStep === 'GettingLastKnownRecord') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div>기존 데이터 확인 중입니다...</div>
+                <div><br></div>
+            </div>`;
+        }
+        else if (currentStep === 'CreateSheetConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">새로운 시트로 보이네요!</div>
+                <div>입력하신 시트 ID의 시트에 기존 데이터가 없습니다.</div>
+                <div>새로운 시트로 차단 내역을 업로드하시겠습니까?</div>
+                <div><br></div>
+                <div class="export-ban-list-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                        <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="createSheetCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
         else if (currentStep === 'OAuthConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
@@ -667,7 +736,7 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">시트 접근 권한이 없습니다</div>
-                <div>본인의 시트가 아닌 경우 공유 상태를 확인해주세요.</div>
+                <div>본인의 시트가 아닌 경우 수정 권한을 확인해주세요.</div>
                 <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
@@ -785,7 +854,8 @@ class DCBanList{
             log: this.#utils.log,
             onShowExportBanListModal: () => this.#modalManager.showExportBanListModal(),
             onStartParsing: async (progressCallback) => this.exportBanList(progressCallback),
-            sendToGoogleSheet: async (sheetId, banList) => this.sendToGoogleSheet(sheetId, banList),
+            sendToGoogleSheet: async (sheetId, banList) => await this.sendToGoogleSheet(sheetId, banList),
+            getLastKnownRecord: async (sheetId) => await this.getLastKnownRecord(sheetId),
         };
     }
 
@@ -855,7 +925,8 @@ class DCBanList{
                     }
 
                     for (const record of result.parsed) {
-                        if (isSameEntry(record, lastKnownRecord)) {
+                        // 마지막으로 알려진 기록과 동일한 항목이 나타나면 중단, 빈 배열일 경우 무시
+                        if (lastKnownRecord.length != 0 && isSameEntry(record, lastKnownRecord)) {
                             reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.`);
                             shouldStop = true;
                             break;
