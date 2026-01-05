@@ -322,14 +322,13 @@
 }
 
 #___COMMENT_SEARCH_MODAL_ID___ .modal-content .user-comment-list {
-    list-style-type: decimal;
     padding: 0;
     margin: 10px 0 0 0;
     max-height: 60vh;
     overflow-y: auto;
 }
 
-#___COMMENT_SEARCH_MODAL_ID___ ul>li::before {
+#___COMMENT_SEARCH_MODAL_ID___ .user-comment-list ul>li::before {
     content: counter(list-number) ".";
     position: absolute;
     left: 0;
@@ -337,6 +336,14 @@
     width: 1.5em;
     text-align: right;
     font-weight: 600;
+}
+
+#___COMMENT_SEARCH_MODAL_ID___ .user-comment-list ul>li {
+    display: flex;
+    flex-direction: column;
+    counter-increment: list-number;
+    position: relative;
+    padding-left: 2em;
 }
 
 .modal-buttons {
