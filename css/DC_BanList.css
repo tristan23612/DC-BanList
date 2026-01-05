@@ -328,7 +328,7 @@
     overflow-y: auto;
 }
 
-#___COMMENT_SEARCH_MODAL_ID___ .user-comment-list ul>li::before {
+#___COMMENT_SEARCH_MODAL_ID___ .comment-search-modal-content ul>li::before {
     content: counter(list-number) ".";
     position: absolute;
     left: 0;
@@ -338,7 +338,7 @@
     font-weight: 600;
 }
 
-#___COMMENT_SEARCH_MODAL_ID___ .user-comment-list ul>li {
+#___COMMENT_SEARCH_MODAL_ID___ .comment-search-modal-content ul>li {
     display: flex;
     flex-direction: column;
     counter-increment: list-number;
