@@ -323,7 +323,7 @@
 
 #___COMMENT_SEARCH_MODAL_ID___ .modal-content .user-comment-list {
     padding: 0;
-    margin: 10px 0 0 0;
+    margin: 10px 0 10px 0;
     max-height: 60vh;
     overflow-y: auto;
 }
@@ -339,11 +339,10 @@
 }
 
 #___COMMENT_SEARCH_MODAL_ID___ .comment-search-modal-content ul>li {
-    display: flex;
-    flex-direction: column;
     counter-increment: list-number;
     position: relative;
     padding-left: 2em;
+    text-align: left;
 }
 
 .modal-buttons {
