@@ -339,6 +339,8 @@
 }
 
 #___COMMENT_SEARCH_MODAL_ID___ .comment-search-modal-content ul>li {
+    display: flex;
+    flex-direction: column;
     counter-increment: list-number;
     position: relative;
     padding-left: 2em;
