@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.4.0-release
+// @version          1.5.0-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -22,8 +22,8 @@
 // @grant            GM_listValues
 // @grant            GM_deleteValue
 // @run-at           document-end
-// @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/main/css/DC_BanList.css
-// @resource         urlConfig https://raw.githubusercontent.com/tristan23612/DC-BanList/main/UrlConfig.json
+// @resource         cssRaw https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/css/DC_BanList.css
+// @resource         urlConfig https://raw.githubusercontent.com/tristan23612/DC-BanList/refs/heads/main/UrlConfig.json
 // @license          MIT
 // @icon             https://github.com/tristan23612/DC-BanList/blob/main/DC_BanList_icon.png?raw=true
 // @downloadURL https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.js
@@ -37,6 +37,7 @@ class ModalManager {
     #log;
     #uiManager;
     #exportBanListModal;
+    #commentSearchModal;
 
     constructor(config, state, eventHandlers, log, uiManager) {
         this.#config = config;
@@ -69,6 +70,159 @@ class ModalManager {
         modal.querySelector('.close-btn').onclick = () => (modal.style.display = 'none');
         this.#uiManager.updateTheme();
         return modal;
+    }
+
+    #getOrCreateCommentSearchModal = () => {
+        if (this.#commentSearchModal) return this.#commentSearchModal;
+
+        const modal = this.#_createModal(this.#config.UI.COMMENT_SEARCH_MODAL_ID, '댓글 검색');
+        this.#commentSearchModal = modal;
+        return modal;
+    }
+
+    hideCommentSearchModal() {
+        if (this.#commentSearchModal) {
+            this.#commentSearchModal.style.display = 'none';
+        }
+    }
+
+    showCommentSearchModal() {
+        const modal = this.#getOrCreateCommentSearchModal();
+        const titleSpan = modal.querySelector('.modal-title > span');
+        const contentDiv = modal.querySelector('.modal-content');
+
+        const titleDisplay = '댓글 검색';
+        titleSpan.textContent = titleDisplay;
+
+        let footer = modal.querySelector('.modal-footer');
+        if (!footer) {
+            footer = document.createElement('div');
+            footer.className = 'modal-footer';
+            modal.appendChild(footer);
+        }
+
+        let currentStep = 'SearchTargetInput';
+        let searchTarget = '';
+        let nickname = '';
+        let commentList = [];
+        let page = 1;
+        let searchPos = '';
+        let prevRes = null;
+        let stopController = { stop: false };
+
+        this.#state.exportLogs = [];
+
+        const updateContent = () => {
+            if (currentStep === 'SearchTargetInput') {
+                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                    currentStep: currentStep,
+                    searchTarget: searchTarget,
+                });
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered SearchTargetInput step of the comment search modal.');
+
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'searchTargetConfirmBtn') {
+                        searchTarget = contentDiv.querySelector('#searchTargetInput').value.trim();
+                        if (!searchTarget) {
+                            alert('검색할 대상을 입력해주세요.');
+                            return;
+                        }
+                        this.#log('ModalManager', `댓글 검색 모달에서 검색 대상을 ${searchTarget}로 설정했습니다.`);
+                        currentStep = 'GettingTargetNickName';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'searchTargetCancelBtn') {
+                        this.hideCommentSearchModal()
+                    }
+                };
+            }
+            else if (currentStep === 'GettingTargetNickName') {
+                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                    currentStep: currentStep,
+                    searchTarget: searchTarget,
+                });
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered TargetConfirmation step of the comment search modal.');
+
+                this.#eventHandlers.getTargetNickName(searchTarget).then(result => {
+                    nickname = result ? result : searchTarget;
+                    modal.querySelector('.modal-title > span').textContent = `댓글 검색 - ${nickname} (${nickname !== searchTarget ? searchTarget : ''})`;
+                    currentStep = 'Searching';
+                    updateContent();
+                }).catch(err => {
+                    console.error('[DC-BanList] 댓글 검색 대상 확인 중 오류 발생:', err);
+                    currentStep = 'SearchTargetInput';
+                    alert('검색 대상의 닉네임을 확인하는 중 오류가 발생했습니다. 다시 시도해주세요.');
+                    updateContent();
+                });
+            }
+            else if (currentStep === 'Searching') {
+                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                    currentStep: currentStep,
+                    searchTarget: searchTarget,
+                    commentList: commentList,
+                    nickname: nickname,
+                });
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered Searching step of the comment search modal.');
+
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'stopSearchBtn') {
+                        stopController.stop = true;
+
+                        event.target.disabled = true;
+                        event.target.textContent = '검색 중지 요청 중...';
+                    }
+                };
+
+                this.#eventHandlers.exportCommentList((progressText, commentList) => {
+                    contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                        currentStep: 'Searching',
+                        searchTarget: searchTarget,
+                        commentList: commentList,
+                        progressText,
+                    });
+                }, searchTarget, stopController, commentList, page, searchPos, prevRes).then(results => {
+                    currentStep = 'SearchPaused';
+                    commentList = results.commentList;
+                    page = results.page;
+                    searchPos = results.searchPos;
+                    prevRes = results.prevRes;
+                    updateContent();
+                }).catch(err => {
+                    console.error('[DC-BanList] 댓글 검색 중 오류 발생:', err);
+                    currentStep = 'SearchPaused';
+                    stopController.stop = true;
+                    updateContent();
+                });
+            }
+            else if (currentStep === 'SearchPaused') {
+                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                    currentStep: currentStep,
+                    searchTarget: searchTarget,
+                    commentList: commentList,
+                    page: page,
+                });
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered SearchPaused step of the comment search modal.');
+
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'closeSearchBtn') {
+                        this.hideCommentSearchModal()
+                    }
+                    else if (event.target && event.target.id === 'SearchResumeBtn') {
+                        stopController.stop = false;
+                        currentStep = 'Searching';
+                        updateContent();
+                    }
+                };
+            }
+        };
+
+        updateContent();
+        modal.style.display = 'block';
+        this.#uiManager.updateTheme();
     }
 
     #getOrCreateExportBanListModal = () => {
@@ -118,25 +272,24 @@ class ModalManager {
                     sheetId: storedSheetId,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered SheetIdConfirmation step of the export ban list modal.');
 
-                contentDiv.querySelector('#sheetIdConfirmBtn').onclick = async () => {
-                    sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
-                    if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
-                        alert('시트 ID를 입력해주세요.');
-                        return;
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'sheetIdConfirmBtn') {
+                        sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
+                        if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
+                            alert('시트 ID를 입력해주세요.');
+                            return;
+                        }
+                        GM_setValue('spreadsheetId', sheetId);
+                        this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
+                        currentStep = 'GettingLastKnownRecord';
+                        updateContent();
                     }
-                    GM_setValue('spreadsheetId', sheetId);
-                    this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
-
-                    currentStep = 'GettingLastKnownRecord';
-                    updateContent();
+                    else if (event.target && event.target.id === 'sheetIdCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
                 };
-
-                contentDiv.querySelector('#sheetIdCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
             }
             else if (currentStep === 'GettingLastKnownRecord') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -170,17 +323,18 @@ class ModalManager {
                     currentStep: currentStep,
                     sheetId: storedSheetId,
                 });
-
+                footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered CreateSheetConfirmation step of the export ban list modal.');
 
-                footer.style.display = 'none';
-                contentDiv.querySelector('#createSheetConfirmBtn').onclick = async () => {
-                    currentStep = 'OAuthConfirmation';
-                    updateContent();
-                };
-                contentDiv.querySelector('#createSheetCancelBtn').onclick = async () => {
-                    currentStep = 'SheetIdConfirmation';
-                    updateContent();
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'createSheetConfirmBtn') {
+                        currentStep = 'OAuthConfirmation';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'createSheetCancelBtn') {
+                        currentStep = 'SheetIdConfirmation';
+                        updateContent();
+                    }
                 };
             }
             else if (currentStep === 'OAuthConfirmation') {
@@ -188,17 +342,17 @@ class ModalManager {
                     currentStep: currentStep,
                     sheetId: storedSheetId,
                 });
-
+                footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered OAuthConfirmation step of the export ban list modal.');
 
-                footer.style.display = 'none';
-                contentDiv.querySelector('#oauthConfirmBtn').onclick = async () => {
-                    currentStep = 'ExportConfirmation';
-                    updateContent();
-                };
-
-                contentDiv.querySelector('#oauthCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'oauthConfirmBtn') {
+                        currentStep = 'ExportConfirmation';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'oauthCancelBtn') {
+                        this.hideExportBanListModal();
+                    }
                 };
             }
             else if (currentStep === 'ExportConfirmation') {
@@ -206,17 +360,17 @@ class ModalManager {
                     currentStep,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered ExportConfirmation step of the export ban list modal.');
 
-                contentDiv.querySelector('#parseConfirmBtn').onclick = () => {
-                    currentStep = 'Parsing';
-                    updateContent();
-                }
-
-                contentDiv.querySelector('#parseCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'parseConfirmBtn') {
+                        currentStep = 'Parsing';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'parseCancelBtn') {
+                        this.hideExportBanListModal();
+                    }
+                };
             }
             else if (currentStep === 'Parsing') {
                 const progressText = ''
@@ -225,13 +379,12 @@ class ModalManager {
                     progressText,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered Parsing step of the export ban list modal.');
 
-                this.#eventHandlers.onStartParsing((progressMsg) => {
+                this.#eventHandlers.exportBanList((progressText) => {
                     contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                         currentStep: 'Parsing',
-                        progressText: progressMsg
+                        progressText: progressText,
                     });
                 }).then(result => {
                     banList = result;
@@ -281,24 +434,23 @@ class ModalManager {
                     banListLength: banList.length,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered ReadyToUpload step of the export ban list modal.');
 
-                contentDiv.querySelector('#uploadConfirmBtn').onclick = async () => {
-                    currentStep = 'UploadInProgress';
-                    updateContent();
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'uploadConfirmBtn') {
+                        currentStep = 'UploadInProgress';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
                 };
-
-                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
             }
             else if (currentStep === 'UploadInProgress') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered UploadInProgress step of the export ban list modal.');
 
                 (async () => {
@@ -335,17 +487,17 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered NotLoggedInError step of the export ban list modal.');
 
-                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
-                    currentStep = 'SheetIdConfirmation';
-                    updateContent();
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'backToSheetIdConfirmationBtn') {
+                        currentStep = 'SheetIdConfirmation';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
                 };
-
-                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
             }
             else if (currentStep === 'OAuthUnauthorizedError') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -353,17 +505,17 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered OAuthUnauthorizedError step of the export ban list modal.');
 
-                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
-                    currentStep = 'SheetIdConfirmation';
-                    updateContent();
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'backToSheetIdConfirmationBtn') {
+                        currentStep = 'SheetIdConfirmation';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
                 };
-
-                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
             }
             else if (currentStep === 'SheetAccessDeniedError') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -371,16 +523,17 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered SheetAccessDeniedError step of the export ban list modal.');
 
-                contentDiv.querySelector('#backToSheetIdConfirmationBtn').onclick = async () => {
-                    currentStep = 'SheetIdConfirmation';
-                    updateContent();
-                }
-                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'backToSheetIdConfirmationBtn') {
+                        currentStep = 'SheetIdConfirmation';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
+                };
             }
             else if (currentStep === 'UploadError') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -388,17 +541,17 @@ class ModalManager {
                     resultMessage,
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered UploadError step of the export ban list modal.');
 
-                contentDiv.querySelector('#backToUploadBtn').onclick = async () => {
-                    currentStep = 'ReadyToUpload';
-                    updateContent();
+                contentDiv.onclick = (event) => {
+                    if (event.target && event.target.id === 'backToUploadBtn') {
+                        currentStep = 'ReadyToUpload';
+                        updateContent();
+                    }
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
+                        this.hideExportBanListModal()
+                    }
                 };
-
-                contentDiv.querySelector('#uploadCancelBtn').onclick = async () => {
-                    this.hideExportBanListModal()
-                }
             }
             else if (currentStep === 'UploadComplete') {
                 contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
@@ -407,7 +560,6 @@ class ModalManager {
                     resultMessage
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered UploadComplete step of the export ban list modal.');
             }
             else {
@@ -416,7 +568,6 @@ class ModalManager {
                     resultMessage
                 });
                 footer.style.display = 'none';
-
                 this.#log('ModalManager', 'Entered an unknown step of the export ban list modal: ' + currentStep);
             }
 
@@ -483,6 +634,7 @@ class UIManager {
 
             const css = cssRaw
                 .replaceAll('___EXPORT_BAN_LIST_MODAL_ID___', this.#config.UI.EXPORT_BAN_LIST_MODAL_ID)
+                .replaceAll('___COMMENT_SEARCH_MODAL_ID___', this.#config.UI.COMMENT_SEARCH_MODAL_ID)
                 .replace(/\s+/g, ' ').trim();
 
             const styleEl = document.createElement('style');
@@ -490,6 +642,38 @@ class UIManager {
             styleEl.textContent = css;
             document.head.appendChild(styleEl);
         }
+    }
+
+    injectCommnentSearchButton() {
+        let leftContainer = document.querySelector('.page_head .fl');
+        if (!leftContainer) {
+            const viewtop = document.getElementById('viewtop');
+            if (viewtop) {
+                // 모바일 메인 헤더 아래
+                leftContainer = document.createElement('div');
+                viewtop.insertAdjacentElement('afterend', leftContainer);
+            }
+        }
+        if (!leftContainer) return; // 못 찾으면 종료
+        if (document.getElementById('dcBanListCommentSearchContainer')) return;
+        const container = document.createElement('div');
+        container.id = 'dcBanListCommentSearchContainer';
+        container.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            margin-left: 10px;
+        `;
+        container.innerHTML = `
+            <button id="dcBanListCommentSearchBtn"
+                    class="modal-confirm-btn"
+                    style="padding:4px 8px; font-size:13px;"
+                    title="댓글 검색">
+            댓글 검색
+            </button>
+        `;
+        leftContainer.appendChild(container);
+        document.getElementById('dcBanListCommentSearchBtn').addEventListener('click', () => this.#eventHandlers.onShowCommentSearchModal());
+        this.#log(`UI`, '댓글 검색 버튼을 페이지에 삽입했습니다.');
     }
 
     injectExportBanListButton() {
@@ -526,6 +710,81 @@ class UIManager {
         document.getElementById('dcBanListExportBanListBtn').addEventListener('click', () => this.#eventHandlers.onShowExportBanListModal());
 
         this.#log(`UI`, '차단 내역 내보내기 버튼을 페이지에 삽입했습니다.');
+    }
+
+    renderCommentSearchModalContent(state = {}) {
+        const {
+            currentStep = 'SearchTargetInput',
+            searchTarget = '',
+            commentList = [],
+            progressText = '',
+            page = 1,
+        } = state;
+
+        let innerHTML = '';
+        if (currentStep === 'SearchTargetInput') {
+            innerHTML = `
+            <div class="comment-search-modal-content">
+                <div style="font-weight:700; font-size:15px;">댓글 검색</div>
+                <div>검색할 대상을 입력해주세요.</div>
+                <div class="search-target-input-group">
+                    <input type="text" id="searchTargetInput" class="search-target-input"
+                        placeholder="닉네임 또는 아이디 입력" value="${searchTarget}"/>
+                </div>
+                <div class="comment-search-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="searchTargetConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="searchTargetCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'GettingTargetNickName') {
+            innerHTML = `
+            <div class="comment-search-modal-content">
+                <div>검색 대상의 닉네임을 확인 중입니다...</div>
+                <div><br></div>
+            </div>`;
+        }
+        else if (currentStep === 'Searching') {
+            innerHTML = `
+            <div class="comment-search-modal-content">
+                <div>댓글을 검색 중입니다...</div>
+                <div style="font-size: 13px; color: gray;">${progressText || '시작중...'}</div>
+                <ul class="user-comment-list">
+                    ${commentList.length > 0 ? commentList.join('') : '<li>검색된 댓글이 없습니다.</li>'}
+                </ul>
+                </div>
+                <div class="comment-search-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="stopSearchBtn" class="modal-cancel-btn">검색 중지</button>
+                    </div>
+            </div>`;
+        }
+        else if (currentStep === 'SearchPaused') {
+            innerHTML = `
+            <div class="comment-search-modal-content">
+                <div>댓글 검색이 중지되었습니다.</div>
+                <div style="font-size: 13px; color: gray;">${page}페이지까지 ${commentList.length}개의 댓글 검색됨.</div>
+                <ul class="user-comment-list">
+                    ${commentList.length > 0 ? commentList.join('') : '<li>검색된 댓글이 없습니다.</li>'}
+                </ul>
+                </div>
+                <div class="comment-search-modal-footer">
+                    <div class="modal-buttons">
+                        <button id="closeSearchBtn" class="modal-cancel-btn">닫기</button>
+                        <button id="SearchResumeBtn" class="modal-confirm-btn">검색 재개</button>
+                    </div>
+            </div>`;
+        }
+        else {
+            innerHTML = `
+            <div class="comment-search-modal-content">
+                <div>알 수 없는 단계에 도달했습니다.</div>
+            </div>`;
+        }
+
+        return innerHTML;
     }
 
     renderBanExportModalContent(state = {}) {
@@ -807,7 +1066,7 @@ class UIManager {
             </div>`;
         }
 
-        return `<div class="ban-export-modal-content">${innerHTML}</div>`;
+        return innerHTML;
     }
 
     isDarkMode() {
@@ -825,7 +1084,7 @@ class UIManager {
     }
 }
 
-class DCBanList{
+class DCBanList {
     #config;
     #state;
     #utils;
@@ -847,16 +1106,112 @@ class DCBanList{
         this.#uiManager.injectStyles();
         this.#uiManager.updateTheme();
         this.#uiManager.injectExportBanListButton();
+        if (this.#config.COMMENT_SEARCH_ENABLED) {
+            this.#uiManager.injectCommnentSearchButton();
+        }
     }
 
     #createEventHandlers() {
         return {
             log: this.#utils.log,
             onShowExportBanListModal: () => this.#modalManager.showExportBanListModal(),
-            onStartParsing: async (progressCallback) => this.exportBanList(progressCallback),
-            sendToGoogleSheet: async (sheetId, banList) => await this.sendToGoogleSheet(sheetId, banList),
-            getLastKnownRecord: async (sheetId) => await this.getLastKnownRecord(sheetId),
+            onShowCommentSearchModal: () => this.#modalManager.showCommentSearchModal(),
+            exportCommentList: async (progressCallback, searchTarget, stopController, commentList = [], page = 1, searchPos = '', prevRes = null) => this.exportCommentList(progressCallback, searchTarget, stopController, commentList, page, searchPos, prevRes),
+            getTargetNickName: async (searchTarget) => this.getTargetNickName(searchTarget),
+            exportBanList: async (progressCallback) => this.exportBanList(progressCallback),
+            sendToGoogleSheet: async (sheetId, banList) => this.sendToGoogleSheet(sheetId, banList),
+            getLastKnownRecord: async (sheetId) => this.getLastKnownRecord(sheetId),
         };
+    }
+
+    async exportCommentList(progressCallback, searchTarget, stopController, commentList = [], page = 1, searchPos = '', prevRes = null) {
+        const galleryId = galleryParser.galleryId;
+        const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
+
+        try {
+            this.#utils.log('Core', '댓글 검색 시작', { galleryId, gallType, searchTarget });
+            const reportProgress = (msg, commentList = []) => {
+                this.#utils.log('Core', msg);
+                if (typeof progressCallback === 'function') {
+                    progressCallback(msg, commentList);
+                }
+            };
+
+            while (stopController && !stopController.stop) {
+                reportProgress(`페이지 ${page} 요청 중...`, commentList);
+
+                let result;
+                try {
+                    result = await this.fetchCommentsPage(galleryId, gallType, searchTarget, page, searchPos, prevRes);
+                }
+                catch (err) {
+                    reportProgress(`페이지 ${page} 요청 중 오류 발생, 재시도합니다. ${err.message}`, commentList);
+                    await this.#utils.sleep(this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_DELAY_MS);
+                    continue;
+                }
+                const fetchedComments = result.parsed;
+                searchPos = result.searchPos ? result.searchPos : '';
+                page = result.page;
+                prevRes = result.response;
+
+                if (result.status === 'end') {
+                    reportProgress(`페이지 ${page}에 더 이상 댓글이 없습니다. 검색 종료.`, commentList);
+                    break;
+                }
+
+                commentList.push(...fetchedComments);
+                reportProgress(`페이지 ${page} 처리 완료 - 누적 ${commentList.length}건`, commentList);
+                page++;
+                await this.#utils.sleep(this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_DELAY_MS);
+            }
+
+            return {
+                commentList,
+                page,
+                searchPos,
+                prevRes,
+            }
+        }
+        catch (err) {
+            console.error('[DC-BanList] 댓글 검색 중 오류 발생:', err);
+            throw err;
+        }
+    }
+
+    async getTargetNickName(searchTarget) {
+        const gallogUrl = 'https://gallog.dcinside.com/' + encodeURIComponent(searchTarget);
+
+        try {
+            this.#utils.log('Core', '검색 대상 확인 시작', { searchTarget, gallogUrl });
+            const res = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: gallogUrl,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    },
+                    onload: resolve,
+                    onerror: reject,
+                });
+            });
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(res.responseText, 'text/html');
+            const nickname = doc.querySelector('.nick_name')?.textContent?.trim();
+
+            if (!nickname) {
+                // IP 이거나 존재하지 않는 사용자
+                this.#utils.log('Core', '검색 대상의 닉네임을 찾을 수 없음', { searchTarget });
+                return null;
+            }
+            this.#utils.log('Core', '검색 대상의 닉네임 확인 완료', { searchTarget, nickname });
+            return nickname;
+        }
+        catch (err) {
+            console.error('[DC-BanList] 검색 대상 확인 중 오류 발생:', err);
+            throw err;
+        }
     }
 
     async exportBanList(progressCallback) {
@@ -962,6 +1317,89 @@ class DCBanList{
         }
         catch (err) {
             console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', err);
+            throw err;
+        }
+    }
+
+    async fetchCommentsPage(galleryId, galleryType, target, page, searchPos = '', prevRes = null) {
+        let baseCommentSearchUrl = '';
+        if (galleryType === 'MI') {
+            baseCommentSearchUrl = `https://gall.dcinside.com/mini/board/lists?id=${galleryId}&s_type=search_comment&s_keyword=%2520`;
+        }
+        else if (galleryType === 'M') {
+            baseCommentSearchUrl = `https://gall.dcinside.com/mgallery/board/lists?id=${galleryId}&s_type=search_comment&s_keyword=%2520`;
+        }
+        else {
+            baseCommentSearchUrl = `https://gall.dcinside.com/board/lists?id=${galleryId}&s_type=search_comment&s_keyword=%2520`;
+        }
+
+        // 쿼리 파라미터 구성
+        let url = `${baseCommentSearchUrl}&page=${page}${(searchPos !== '') ? `&search_pos=${searchPos}` : ''}`;
+
+        try {
+            const res = await Promise.race([
+                new Promise((resolve, reject) => {
+                    GM_xmlhttpRequest({
+                        method: 'GET',
+                        url,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
+                        },
+                        onload: resolve,
+                        onerror: reject,
+                    });
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('timeout')), this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_TIMEOUT_MS)
+                )
+            ]);
+
+            if (new URLSearchParams(res.finalUrl).get('page') !== new URLSearchParams(url).get('page')) {
+                console.warn(`[DC-BanList] 댓글 검색 페이지에서 리디렉션 감지됨`);
+
+                const doc = new DOMParser().parseFromString(prevRes.responseText, 'text/html');
+
+                if (doc.querySelector('div.bottom_paging_wrap a.search_next')) {
+                    searchPos = new URLSearchParams(doc.querySelector('div.bottom_paging_wrap a.search_next').getAttribute('href')).get('search_pos');
+                    page = 1;
+
+                    return {
+                        status: 'search_pos_update',
+                        page,
+                        searchPos,
+                        parsed: [],
+                    };
+                }
+                else {
+                    return {
+                        status: 'end',
+                        page,
+                        parsed: [],
+                    };
+                }
+            }
+            else {
+                const parsed = this.parseCommentList(res.responseText, target);
+                if (parsed.length === 0) {
+                    return {
+                        status: 'empty',
+                        page,
+                        parsed,
+                        response: res,
+                    };
+                }
+                else {
+                    this.#utils.log('Core', `${galleryId} 갤러리의 ${target}유저 ${page}페이지 ${searchPos}위치 댓글 파싱 완료.`);
+                    return {
+                        status: 'success',
+                        page,
+                        parsed,
+                        response: res,
+                    };
+                }
+            }
+        } catch (err) {
             throw err;
         }
     }
@@ -1079,6 +1517,39 @@ class DCBanList{
         catch (err) {
             throw err;
         }
+    }
+
+    parseCommentList(htmlText, target) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+
+        const rows = Array.from(doc.querySelectorAll('.listwrap2 .search.search_comment'));
+
+        if (rows.length === 0) {
+            return []; // 빈 배열 반환
+        }
+
+        const parsedData = rows
+            .filter(row => row.querySelector('.gall_writer')?.getAttribute('data-uid') === target)
+            .map(row => {
+                const url = row.querySelector('div.sch_cmt a')?.getAttribute('href') || '';
+                const content = row.querySelector('div.sch_cmt a')?.textContent.trim() || '';
+                const nickname = row.querySelector('td.gall_writer')?.getAttribute('data-nick') || '';
+                const identifier = row.querySelector('td.gall_writer')?.getAttribute('data-uid') || '';
+                const date = row.querySelector('td.gall_date')?.textContent.trim() || '';
+
+                // 디스플레이용 html
+                const rowHtml = `
+                <li style="margin-bottom:5px;">
+                    <a href="${url}" target="_blank" style="font-weight:700; color:#00aaff;">${content}</a>
+                    <span style="font-size:12px; color:gray;">작성자: ${nickname} (${identifier}) | 작성일: ${date}</span>
+                </li>
+                `
+
+                return rowHtml;
+            });
+
+        return parsedData;
     }
 
     parseBanList(htmlText) {
@@ -1243,18 +1714,18 @@ class PostParser {
 
             if (document.querySelector('span.mgall-tit')) {
                 // 마이너 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/mgallery/board/' + (this.postNo ? 'view/' : 'lists/')
-                this.galleryType = 'mgallery'
+                this.baseUrl = 'https://gall.dcinside.com/mgallery/board/' + (this.postNo ? 'view/' : 'lists/');
+                this.galleryType = 'mgallery';
             }
             else if (document.querySelector('span.mngall-tit')) {
                 // 미니 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/mini/board/' + (this.postNo ? 'view/' : 'lists/')
-                this.galleryType = 'mini'
+                this.baseUrl = 'https://gall.dcinside.com/mini/board/' + (this.postNo ? 'view/' : 'lists/');
+                this.galleryType = 'mini';
             }
             else {
                 // 정식 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/board/' + (this.postNo ? 'view/' : 'lists/')
-                this.galleryType = null
+                this.baseUrl = 'https://gall.dcinside.com/board/' + (this.postNo ? 'view/' : 'lists/');
+                this.galleryType = 'gallery';
             }
 
             this.pcUrl = `${this.baseUrl}?id=${this.galleryId}` + (this.postNo ? `&no=${this.postNo}` : '');
@@ -1300,12 +1771,14 @@ const urlConfig = JSON.parse(GM_getResourceText('urlConfig'));
 
 const config = {
     DEBUG_MODE: true,
+    COMMENT_SEARCH_ENABLED: false,
     ICON_URL: urlConfig.iconUrl,
     APPS_SCRIPT_URL: urlConfig.appsScriptUrl,
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: urlConfig.appsScriptAuthDemonstrationUrl,
 
     UI: {
         EXPORT_BAN_LIST_MODAL_ID: 'dcBanListExportBanListModal',
+        COMMENT_SEARCH_MODAL_ID: 'dcBanListCommentSearchModal',
     },
 
     CONSTANTS: {
@@ -1313,6 +1786,8 @@ const config = {
         BAN_LIST_FETCH_DELAY_MS: 200,
         BAN_LIST_FETCH_TIMEOUT_MS: 8000,
         MAX_BAN_LIST_PAGES_LIMIT: 200,
+        COMMENT_SEARCH_FETCH_DELAY_MS: 1000,
+        COMMENT_SEARCH_FETCH_TIMEOUT_MS: 10000,
     },
 };
 
@@ -1338,9 +1813,9 @@ const galleryParser = new PostParser();
 
 (async () => {
     // --- Script Entry Point ---
-    
+
     'use strict';
-    
+
     const dcBanList = new DCBanList(
         config,
         state,
@@ -1348,7 +1823,7 @@ const galleryParser = new PostParser();
         UIManager,
         ModalManager
     );
-    
+
     dcBanList.init();
     await galleryParser.init();
 })();
