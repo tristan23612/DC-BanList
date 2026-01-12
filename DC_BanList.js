@@ -105,7 +105,7 @@ class ModalManager {
         let searchTarget = '';
         let nickname = '';
         let commentList = [];
-        let page = 1;
+        let page = 0;
         let searchPos = '';
         let prevRes = null;
         let stopController = { stop: false };
@@ -729,7 +729,7 @@ class UIManager {
                 <div>검색할 대상을 입력해주세요.</div>
                 <div class="search-target-input-group">
                     <input type="text" id="searchTargetInput" class="search-target-input"
-                        placeholder="닉네임 또는 아이디 입력" value="${searchTarget}"/>
+                        placeholder="식별코드 또는 아이피 입력" value="${searchTarget}"/>
                 </div>
                 <div class="comment-search-modal-footer">
                     <div class="modal-buttons">
@@ -1124,9 +1124,11 @@ class DCBanList {
         };
     }
 
-    async exportCommentList(progressCallback, searchTarget, stopController, commentList = [], page = 1, searchPos = '', prevRes = null) {
+    async exportCommentList(progressCallback, searchTarget, stopController, commentList = [], page = 0, searchPos = '', prevRes = null) {
         const galleryId = galleryParser.galleryId;
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
+
+        page++;
 
         try {
             this.#utils.log('Core', '댓글 검색 시작', { galleryId, gallType, searchTarget });
@@ -1161,7 +1163,6 @@ class DCBanList {
 
                 commentList.push(...fetchedComments);
                 reportProgress(`페이지 ${page} 처리 완료 - 누적 ${commentList.length}건`, commentList);
-                page++;
                 await this.#utils.sleep(this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_DELAY_MS);
             }
 
@@ -1333,7 +1334,6 @@ class DCBanList {
             baseCommentSearchUrl = `https://gall.dcinside.com/board/lists?id=${galleryId}&s_type=search_comment&s_keyword=%2520`;
         }
 
-        // 쿼리 파라미터 구성
         let url = `${baseCommentSearchUrl}&page=${page}${(searchPos !== '') ? `&search_pos=${searchPos}` : ''}`;
 
         try {
@@ -1346,6 +1346,7 @@ class DCBanList {
                             'X-Requested-With': 'XMLHttpRequest',
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                         },
+                        withCredentials: true,
                         onload: resolve,
                         onerror: reject,
                     });
@@ -1385,6 +1386,7 @@ class DCBanList {
                     return {
                         status: 'empty',
                         page,
+                        searchPos,
                         parsed,
                         response: res,
                     };
@@ -1394,6 +1396,7 @@ class DCBanList {
                     return {
                         status: 'success',
                         page,
+                        searchPos,
                         parsed,
                         response: res,
                     };
@@ -1405,7 +1408,6 @@ class DCBanList {
     }
 
     async fetchBanPage(galleryId, galleryType, page) {
-        // baseBanListUrl URL 결정
         let baseBanListUrl = '';
         if (galleryType === 'MI') {
             baseBanListUrl = 'https://gall.dcinside.com/mini/management/block';
@@ -1415,7 +1417,6 @@ class DCBanList {
             throw new Error(`Invalid galleryType: ${galleryType}`);
         }
 
-        // 쿼리 파라미터 구성
         const url = `${baseBanListUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
 
         try {
@@ -1428,6 +1429,7 @@ class DCBanList {
                             'X-Requested-With': 'XMLHttpRequest',
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                         },
+                        withCredentials: true,
                         onload: resolve,
                         onerror: reject,
                     });
@@ -1437,7 +1439,6 @@ class DCBanList {
                 )
             ]);
 
-            // 리디렉션 스크립트가 포함된 경우 매니저 권한이 없음을 의미
             if (!res.responseText.includes('minor_admin')) {
                 console.warn(`[DC-BanList] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
@@ -1530,7 +1531,11 @@ class DCBanList {
         }
 
         const parsedData = rows
-            .filter(row => row.querySelector('.gall_writer')?.getAttribute('data-uid') === target)
+            .filter(row => {
+                const uid = row.querySelector('.gall_writer')?.getAttribute('data-uid')
+                const ip = row.querySelector('.gall_writer')?.getAttribute('data-ip')
+                return uid === target || ip === target;
+            })
             .map(row => {
                 const url = row.querySelector('div.sch_cmt a')?.getAttribute('href') || '';
                 const content = row.querySelector('div.sch_cmt a')?.textContent.trim() || '';
@@ -1758,8 +1763,10 @@ class PostParser {
                 method: 'GET',
                 url,
                 headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                 },
+                withCredentials: true,
                 onload: (res) => resolve(res),
                 onerror: (err) => reject(err)
             });
@@ -1786,7 +1793,7 @@ const config = {
         BAN_LIST_FETCH_DELAY_MS: 200,
         BAN_LIST_FETCH_TIMEOUT_MS: 8000,
         MAX_BAN_LIST_PAGES_LIMIT: 200,
-        COMMENT_SEARCH_FETCH_DELAY_MS: 1000,
+        COMMENT_SEARCH_FETCH_DELAY_MS: 500,
         COMMENT_SEARCH_FETCH_TIMEOUT_MS: 10000,
     },
 };
