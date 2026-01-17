@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.5.0-release
+// @version          1.5.1-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -80,8 +80,11 @@ class ModalManager {
         return modal;
     }
 
-    hideCommentSearchModal() {
+    hideCommentSearchModal(stopController = null) {
         if (this.#commentSearchModal) {
+            if (stopController) {
+                stopController.stop = true;
+            }
             this.#commentSearchModal.style.display = 'none';
         }
     }
@@ -101,6 +104,10 @@ class ModalManager {
             modal.appendChild(footer);
         }
 
+        let commentSearchModalContentHTML = '';
+        let commentSearchModalFooterHTML = '';
+        let commentSearchModalContentDiv = '';
+
         let currentStep = 'SearchTargetInput';
         let searchTarget = '';
         let nickname = '';
@@ -114,10 +121,14 @@ class ModalManager {
 
         const updateContent = () => {
             if (currentStep === 'SearchTargetInput') {
-                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                commentSearchModalContentHTML = this.#uiManager.renderCommentSearchModalContent({
                     currentStep: currentStep,
                     searchTarget: searchTarget,
+                })
+                commentSearchModalFooterHTML = this.#uiManager.renderCommentSearchModalFooter({
+                    currentStep: currentStep,
                 });
+                contentDiv.innerHTML = commentSearchModalContentHTML + commentSearchModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered SearchTargetInput step of the comment search modal.');
 
@@ -138,10 +149,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'GettingTargetNickName') {
-                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                commentSearchModalContentHTML = this.#uiManager.renderCommentSearchModalContent({
                     currentStep: currentStep,
                     searchTarget: searchTarget,
+                })
+                commentSearchModalFooterHTML = this.#uiManager.renderCommentSearchModalFooter({
+                    currentStep: currentStep,
                 });
+                contentDiv.innerHTML = commentSearchModalContentHTML + commentSearchModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered TargetConfirmation step of the comment search modal.');
 
@@ -158,12 +173,16 @@ class ModalManager {
                 });
             }
             else if (currentStep === 'Searching') {
-                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                commentSearchModalContentHTML = this.#uiManager.renderCommentSearchModalContent({
                     currentStep: currentStep,
                     searchTarget: searchTarget,
                     commentList: commentList,
                     nickname: nickname,
+                })
+                commentSearchModalFooterHTML = this.#uiManager.renderCommentSearchModalFooter({
+                    currentStep: currentStep,
                 });
+                contentDiv.innerHTML = commentSearchModalContentHTML + commentSearchModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered Searching step of the comment search modal.');
 
@@ -177,33 +196,38 @@ class ModalManager {
                 };
 
                 this.#eventHandlers.exportCommentList((progressText, commentList) => {
-                    contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                    commentSearchModalContentDiv = contentDiv.querySelector('.comment-search-modal-content')
+                    commentSearchModalContentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
                         currentStep: 'Searching',
                         searchTarget: searchTarget,
                         commentList: commentList,
                         progressText,
-                    });
+                    })
                 }, searchTarget, stopController, commentList, page, searchPos, prevRes).then(results => {
                     currentStep = 'SearchPaused';
                     commentList = results.commentList;
                     page = results.page;
                     searchPos = results.searchPos;
                     prevRes = results.prevRes;
-                    updateContent();
+                    updateContent(stopController);
                 }).catch(err => {
                     console.error('[DC-BanList] 댓글 검색 중 오류 발생:', err);
                     currentStep = 'SearchPaused';
                     stopController.stop = true;
-                    updateContent();
+                    updateContent(stopController);
                 });
             }
             else if (currentStep === 'SearchPaused') {
-                contentDiv.innerHTML = this.#uiManager.renderCommentSearchModalContent({
+                commentSearchModalContentHTML = this.#uiManager.renderCommentSearchModalContent({
                     currentStep: currentStep,
                     searchTarget: searchTarget,
                     commentList: commentList,
                     page: page,
+                })
+                commentSearchModalFooterHTML = this.#uiManager.renderCommentSearchModalFooter({
+                    currentStep: currentStep,
                 });
+                contentDiv.innerHTML = commentSearchModalContentHTML + commentSearchModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered SearchPaused step of the comment search modal.');
 
@@ -257,20 +281,28 @@ class ModalManager {
 
         const storedSheetId = GM_getValue('spreadsheetId', '시트 ID를 입력해주세요.');
 
-        let currentStep = 'SheetIdConfirmation'; // confirm, Parsing, ReadyToUpload
+        let currentStep = 'SheetIdConfirmation';
         let banList = [];
-        let resultMessage = ''
-        let sheetId = ''
+        let resultMessage = '';
+        let sheetId = '';
         let lastKnownRecord = null;
+
+        let banExportModalContentHTML = '';
+        let banExportModalFooterHTML = '';
+        let banExportModalConetntDiv = '';
 
         this.#state.exportLogs = [];
 
         const updateContent = () => {
             if (currentStep === 'SheetIdConfirmation') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered SheetIdConfirmation step of the export ban list modal.');
 
@@ -292,10 +324,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'GettingLastKnownRecord') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered GettingLastKnownRecord step of the export ban list modal.');
 
@@ -319,10 +355,14 @@ class ModalManager {
                 });
             }
             else if (currentStep === 'CreateSheetConfirmation') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered CreateSheetConfirmation step of the export ban list modal.');
 
@@ -338,10 +378,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'OAuthConfirmation') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered OAuthConfirmation step of the export ban list modal.');
 
@@ -356,9 +400,13 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'ExportConfirmation') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered ExportConfirmation step of the export ban list modal.');
 
@@ -373,16 +421,21 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'Parsing') {
-                const progressText = ''
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
-                    progressText,
+                let progressText = ''
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
+                    progressText
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered Parsing step of the export ban list modal.');
 
                 this.#eventHandlers.exportBanList((progressText) => {
-                    contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                    banExportModalConetntDiv = contentDiv.querySelector('.export-ban-list-modal-content')
+                    banExportModalConetntDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
                         currentStep: 'Parsing',
                         progressText: progressText,
                     });
@@ -428,11 +481,15 @@ class ModalManager {
                 });
             }
             else if (currentStep === 'ReadyToUpload') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
                     banListLength: banList.length,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered ReadyToUpload step of the export ban list modal.');
 
@@ -447,9 +504,13 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'UploadInProgress') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered UploadInProgress step of the export ban list modal.');
 
@@ -482,10 +543,14 @@ class ModalManager {
                 })();
             }
             else if (currentStep === 'NotLoggedInError') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered NotLoggedInError step of the export ban list modal.');
 
@@ -500,10 +565,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'OAuthUnauthorizedError') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered OAuthUnauthorizedError step of the export ban list modal.');
 
@@ -518,10 +587,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'SheetAccessDeniedError') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered SheetAccessDeniedError step of the export ban list modal.');
 
@@ -536,10 +609,14 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'UploadError') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered UploadError step of the export ban list modal.');
 
@@ -554,19 +631,27 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'UploadComplete') {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
                     sheetId: storedSheetId,
-                    resultMessage
+                    resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered UploadComplete step of the export ban list modal.');
             }
             else {
-                contentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep: currentStep,
-                    resultMessage
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
+                    resultMessage,
                 });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered an unknown step of the export ban list modal: ' + currentStep);
             }
@@ -712,6 +797,48 @@ class UIManager {
         this.#log(`UI`, '차단 내역 내보내기 버튼을 페이지에 삽입했습니다.');
     }
 
+    renderCommentSearchModalFooter(state = {}) {
+        const {
+            currentStep = 'SearchTargetInput',
+        } = state;
+
+        let innerHTML = '';
+        if (currentStep === 'SearchTargetInput') {
+            innerHTML = `
+            <div class="comment-search-modal-footer">
+                <div class="modal-buttons">
+                    <button id="searchTargetConfirmBtn" class="modal-confirm-btn">확인</button>
+                    <button id="searchTargetCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'GettingTargetNickName') {
+            innerHTML = '';
+        }
+        else if (currentStep === 'Searching') {
+            innerHTML = `
+            <div class="comment-search-modal-footer">
+                <div class="modal-buttons">
+                    <button id="stopSearchBtn" class="modal-cancel-btn">검색 중지</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'SearchPaused') {
+            innerHTML = `
+            <div class="comment-search-modal-footer">
+                <div class="modal-buttons">
+                    <button id="closeSearchBtn" class="modal-cancel-btn">닫기</button>
+                    <button id="SearchResumeBtn" class="modal-confirm-btn">검색 재개</button>
+                </div>
+            </div>`;
+        }
+        else {
+            innerHTML = '';
+        }
+
+        return innerHTML;
+    }
+
     renderCommentSearchModalContent(state = {}) {
         const {
             currentStep = 'SearchTargetInput',
@@ -731,12 +858,6 @@ class UIManager {
                     <input type="text" id="searchTargetInput" class="search-target-input"
                         placeholder="식별코드 또는 아이피 입력" value="${searchTarget}"/>
                 </div>
-                <div class="comment-search-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="searchTargetConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="searchTargetCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'GettingTargetNickName') {
@@ -754,11 +875,6 @@ class UIManager {
                 <ul class="user-comment-list">
                     ${commentList.length > 0 ? commentList.join('') : '<li>검색된 댓글이 없습니다.</li>'}
                 </ul>
-                </div>
-                <div class="comment-search-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="stopSearchBtn" class="modal-cancel-btn">검색 중지</button>
-                    </div>
             </div>`;
         }
         else if (currentStep === 'SearchPaused') {
@@ -769,18 +885,153 @@ class UIManager {
                 <ul class="user-comment-list">
                     ${commentList.length > 0 ? commentList.join('') : '<li>검색된 댓글이 없습니다.</li>'}
                 </ul>
-                </div>
-                <div class="comment-search-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="closeSearchBtn" class="modal-cancel-btn">닫기</button>
-                        <button id="SearchResumeBtn" class="modal-confirm-btn">검색 재개</button>
-                    </div>
             </div>`;
         }
         else {
             innerHTML = `
             <div class="comment-search-modal-content">
                 <div>알 수 없는 단계에 도달했습니다.</div>
+            </div>`;
+        }
+
+        return innerHTML;
+    }
+
+    renderBanExportModalFooter(state = {}) {
+        const {
+            currentStep = 'confirm',
+        } = state;
+
+        let innerHTML = '';
+        if (currentStep === 'SheetIdConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="sheetIdConfirmBtn" class="modal-confirm-btn">확인</button>
+                    <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'GettingLastKnownRecord') {
+            innerHTML = ``;
+        }
+        else if (currentStep === 'CreateSheetConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
+                    <button id="createSheetCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'OAuthConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 인증 완료</button>
+                    <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'ExportConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
+                    <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'Parsing') {
+            innerHTML = ``;
+        }
+        else if (currentStep === 'ParseError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'ReadyToUpload') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
+                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'PermissionError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'UploadInProgress') {
+            innerHTML = ``;
+        }
+        else if (currentStep === 'NotLoggedInError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
+                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'OAuthUnauthorizedError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">권한 인증 완료</button>
+                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'SheetAccessDeniedError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
+                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'UploadError') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
+        }
+        else if (currentStep === 'UploadComplete') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                </div>
+            </div>`;
+        }
+        else {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                </div>
             </div>`;
         }
 
@@ -810,13 +1061,6 @@ class UIManager {
                     <input type="text" id="sheetIdInput" class="sheet-id-input" 
                         placeholder="${sheetId}"/>
                 </div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="sheetIdConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'GettingLastKnownRecord') {
@@ -833,13 +1077,6 @@ class UIManager {
                 <div>입력하신 시트 ID의 시트에 기존 데이터가 없습니다.</div>
                 <div>새로운 시트로 차단 내역을 업로드하시겠습니까?</div>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="createSheetCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'OAuthConfirmation') {
@@ -857,16 +1094,9 @@ class UIManager {
                 <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
                 <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
-                    https://gall.dcinside.com/mini/mangonote
+                https://gall.dcinside.com/mini/mangonote
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 인증 완료</button>
-                        <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'ExportConfirmation') {
@@ -876,14 +1106,7 @@ class UIManager {
                 <div>차단 내역을 수집하여 Google 시트에 업로드합니다.</div>
                 <div>매니저의 권한으로 마스킹이 제거된 리스트를 수집합니다.</div>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
-            </div>`
+            </div>`;
         }
         else if (currentStep === 'Parsing') {
             innerHTML = `
@@ -901,11 +1124,6 @@ class UIManager {
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
                 </a>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'ReadyToUpload') {
@@ -913,13 +1131,6 @@ class UIManager {
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">${banListLength}건의 신규 차단내역을 구글시트에 업로드하시겠습니까?</div>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
-                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'PermissionError') {
@@ -932,11 +1143,6 @@ class UIManager {
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
                 </a>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'UploadInProgress') {
@@ -956,13 +1162,6 @@ class UIManager {
                     https://accounts.google.com/
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
-                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'OAuthUnauthorizedError') {
@@ -982,13 +1181,6 @@ class UIManager {
                     https://gall.dcinside.com/mini/mangonote
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">권한 인증 완료</button>
-                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'SheetAccessDeniedError') {
@@ -1001,13 +1193,6 @@ class UIManager {
                     https://gall.dcinside.com/mini/mangonote
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
-                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'UploadError') {
@@ -1024,13 +1209,6 @@ class UIManager {
                     https://gall.dcinside.com/mini/mangonote
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
-                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                    </div>
-                </div>
             </div>`;
         }
         else if (currentStep === 'UploadComplete') {
@@ -1042,11 +1220,6 @@ class UIManager {
                     구글 시트로 이동
                 </a>
                 <div><br></div>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    </div>
-                </div>
             </div>`;
         }
         else {
@@ -1058,11 +1231,6 @@ class UIManager {
                 <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
                     https://gall.dcinside.com/mini/mangonote
                 </a>
-                <div class="export-ban-list-modal-footer">
-                    <div class="modal-buttons">
-                        <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    </div>
-                </div>
             </div>`;
         }
 
@@ -1128,8 +1296,6 @@ class DCBanList {
         const galleryId = galleryParser.galleryId;
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
 
-        page++;
-
         try {
             this.#utils.log('Core', '댓글 검색 시작', { galleryId, gallType, searchTarget });
             const reportProgress = (msg, commentList = []) => {
@@ -1140,6 +1306,7 @@ class DCBanList {
             };
 
             while (stopController && !stopController.stop) {
+                page++;
                 reportProgress(`페이지 ${page} 요청 중...`, commentList);
 
                 let result;
