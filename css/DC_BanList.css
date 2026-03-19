@@ -200,6 +200,11 @@
     border: 1px solid #ddd;
 }
 
+.dcBanList-light-theme .oauth-redirect-btn {
+    background-color: #1a7f37;
+    color: #fff;
+}
+
 .dcBanList-dark-theme #___EXPORT_BAN_LIST_MODAL_ID___ .sheet-id-input {
     border-color: #555;
 }
@@ -223,6 +228,11 @@
     background-color: #495057;
     color: #f1f3f5;
     border: 1px solid #5a6268;
+}
+
+.dcBanList-dark-theme .oauth-redirect-btn {
+    background-color: #238636;
+    color: #fff;
 }
 
 #___EXPORT_BAN_LIST_MODAL_ID___ {
@@ -356,7 +366,8 @@
 
 .modal-confirm-btn,
 .modal-cancel-btn,
-.copy-logs-btn {
+.copy-logs-btn,
+.oauth-redirect-btn {
     padding: 8px 16px;
     border: none;
     border-radius: 5px;
@@ -381,6 +392,10 @@
     background-color: #e9ecef;
 }
 
+.dcBanList-light-theme .oauth-redirect-btn:hover {
+    background-color: #16692c;
+}
+
 .dcBanList-dark-theme .modal-confirm-btn:hover {
     background-color: #0b5ed7;
 }
@@ -391,6 +406,10 @@
 
 .dcBanList-dark-theme .copy-logs-btn:hover {
     background-color: #5a6268;
+}
+
+.dcBanList-dark-theme .oauth-redirect-btn:hover {
+    background-color: #1e6c2b;
 }
 
 #___EXPORT_BAN_LIST_MODAL_ID___ .sheet-id-input:focus {
