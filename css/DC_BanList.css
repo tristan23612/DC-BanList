@@ -200,7 +200,8 @@
     border: 1px solid #ddd;
 }
 
-.dcBanList-light-theme .oauth-redirect-btn {
+.dcBanList-light-theme .oauth-redirect-btn,
+.dcBanList-light-theme .auto-process-btn {
     background-color: #1a7f37;
     color: #fff;
 }
@@ -230,7 +231,8 @@
     border: 1px solid #5a6268;
 }
 
-.dcBanList-dark-theme .oauth-redirect-btn {
+.dcBanList-dark-theme .oauth-redirect-btn,
+.dcBanList-dark-theme .auto-process-btn {
     background-color: #238636;
     color: #fff;
 }
@@ -367,7 +369,8 @@
 .modal-confirm-btn,
 .modal-cancel-btn,
 .copy-logs-btn,
-.oauth-redirect-btn {
+.oauth-redirect-btn,
+.auto-process-btn {
     padding: 8px 16px;
     border: none;
     border-radius: 5px;
@@ -392,7 +395,8 @@
     background-color: #e9ecef;
 }
 
-.dcBanList-light-theme .oauth-redirect-btn:hover {
+.dcBanList-light-theme .oauth-redirect-btn:hover,
+.dcBanList-light-theme .auto-process-btn:hover {
     background-color: #16692c;
 }
 
@@ -408,7 +412,8 @@
     background-color: #5a6268;
 }
 
-.dcBanList-dark-theme .oauth-redirect-btn:hover {
+.dcBanList-dark-theme .oauth-redirect-btn:hover,
+.dcBanList-dark-theme .auto-process-btn:hover {
     background-color: #1e6c2b;
 }
 
