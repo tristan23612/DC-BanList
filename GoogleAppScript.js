@@ -24,12 +24,15 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return HtmlService.createHtmlOutput(`
-    <div style="font-family:sans-serif; text-align:center; margin-top:100px;">
-      <h2>✅ 인증이 완료되었습니다</h2>
-      <p>이 창은 닫으셔도 됩니다.</p>
-    </div>
-  `);
+    if (e.parameter.check === 'true') {
+        return ContentService.createTextOutput("AUTH_OK");
+    }
+    return HtmlService.createHtmlOutput(`
+        <div style="font-family:sans-serif; text-align:center; margin-top:100px;">
+            <h2>✅ 인증이 완료되었습니다</h2>
+            <p>이 창은 닫으셔도 됩니다.</p>
+        </div>
+    `);
 }
 
 function uploadToGoogleSheet(e) {
