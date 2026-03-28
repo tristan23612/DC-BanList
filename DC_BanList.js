@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.5.1-release
+// @version          1.6.0-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -137,11 +137,12 @@ class ModalManager {
                         searchTarget = contentDiv.querySelector('#searchTargetInput').value.trim();
                         if (!searchTarget) {
                             alert('검색할 대상을 입력해주세요.');
-                            return;
                         }
-                        this.#log('ModalManager', `댓글 검색 모달에서 검색 대상을 ${searchTarget}로 설정했습니다.`);
-                        currentStep = 'GettingTargetNickName';
-                        updateContent();
+                        else {
+                            this.#log('ModalManager', `댓글 검색 모달에서 검색 대상을 ${searchTarget}로 설정했습니다.`);
+                            currentStep = 'GettingTargetNickName';
+                            updateContent();
+                        }
                     }
                     else if (event.target && event.target.id === 'searchTargetCancelBtn') {
                         this.hideCommentSearchModal()
@@ -281,11 +282,12 @@ class ModalManager {
 
         const storedSheetId = GM_getValue('spreadsheetId', '시트 ID를 입력해주세요.');
 
-        let currentStep = 'SheetIdConfirmation';
+        let currentStep = 'OAuthConfirmation';
         let banList = [];
         let resultMessage = '';
         let sheetId = '';
         let lastKnownRecord = null;
+        let autoProcess = false;
 
         let banExportModalContentHTML = '';
         let banExportModalFooterHTML = '';
@@ -294,7 +296,89 @@ class ModalManager {
         this.#state.exportLogs = [];
 
         const updateContent = () => {
-            if (currentStep === 'SheetIdConfirmation') {
+            if (currentStep === 'OAuthConfirmation') {
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
+                    currentStep,
+                    sheetId: storedSheetId,
+                });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
+                    currentStep,
+                })
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
+                footer.style.display = 'none';
+                this.#log('ModalManager', 'Entered OAuthConfirmation step of the export ban list modal.');
+
+                contentDiv.onclick = async (event) => {
+                    if (event.target && event.target.id === 'oauthConfirmBtn') {
+                        const statusEl = contentDiv.querySelector('#oauthStatusMessage');
+                        const currentState = event.target.dataset.state;
+
+                        if (currentState === 'need-auth') {
+                            window.open(this.#config.APPS_SCRIPT_URL, 'googleAuth', 'width=600,height=600');
+
+                            event.target.dataset.state = 'init';
+                            event.target.textContent = '재시도';
+                            if (statusEl) {
+                                statusEl.innerHTML = '<span style="color: #007BFF;">💡 팝업에서 인증을 진행하신 후, 버튼을 다시 눌러주세요.</span>';
+                            }
+                        }
+                        else {
+                            event.target.classList.add('is-loading');
+                            event.target.textContent = '권한 확인 중...';
+                            if (statusEl) statusEl.innerHTML = '⏳ 구글 계정 권한을 확인하고 있습니다...';
+
+                            try {
+                                console.log('[DC-BanList] Checking authentication status with Google Apps Script...');
+                                const res = await Promise.race([
+                                    new Promise((resolve, reject) => {
+                                        GM_xmlhttpRequest({
+                                            method: 'GET',
+                                            url: `${this.#config.APPS_SCRIPT_URL}?check=true`,
+                                            onload: (response) => resolve(response),
+                                            onerror: (err) => reject(err),
+                                            timeout: 10000,
+                                            anonymous: false,
+                                            fetch: true,
+                                            ontimeout: () => reject(new Error('Request timed out')),
+                                        });
+                                    }),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 15000))
+                                ])
+                                const resultText = res.responseText.trim();
+                                console.log('[DC-BanList] Authentication check response:', resultText);
+                                if (resultText === "AUTH_OK") {
+                                    if (statusEl) statusEl.innerHTML = '<span style="color: green;">✅ 인증 확인되었습니다!</span>';
+                                    setTimeout(() => {
+                                        currentStep = 'SheetIdConfirmation';
+                                        updateContent();
+                                    }, 1000);
+                                } else {
+                                    event.target.classList.remove('is-loading');
+                                    event.target.dataset.state = 'need-auth';
+                                    event.target.textContent = 'GAS 승인';
+
+                                    if (statusEl) {
+                                        statusEl.innerHTML = `
+                                            <span style="color: #E67E22; font-weight: bold;">⚠️ 권한 승인이 필요합니다.</span><br>
+                                            <span style="font-size: 12px; color: gray;">버튼을 클릭하여 나타나는 팝업창에서 [허용]을 눌러주세요.</span>
+                                        `;
+                                    }
+                                }
+                            } catch (err) {
+                                this.#log('ModalManager', `Error during authentication check: ${err.message || err}`);
+                                console.error('[DC-BanList] Auth Error:', err);
+                                event.target.disabled = false;
+                                event.target.textContent = '다시 시도';
+                                if (statusEl) statusEl.innerHTML = '<span style="color: #dc3545;">⚠️ 서버 연결 실패. 네트워크를 확인해주세요.</span>';
+                            }
+                        }
+                    }
+                    else if (event.target && event.target.id === 'oauthCancelBtn') {
+                        this.hideExportBanListModal();
+                    }
+                };
+            }
+            else if (currentStep === 'SheetIdConfirmation') {
                 banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
                     currentStep,
                     sheetId: storedSheetId,
@@ -307,52 +391,63 @@ class ModalManager {
                 this.#log('ModalManager', 'Entered SheetIdConfirmation step of the export ban list modal.');
 
                 contentDiv.onclick = (event) => {
-                    if (event.target && event.target.id === 'sheetIdConfirmBtn') {
+                    if (event.target && event.target.id === 'manualProcessBtn' || (event.target && event.target.id === 'autoProcessBtn')) {
+                        const container = event.target.closest('.process-option-buttons');
+                        if (container) {
+                            container.classList.add('is-loading');
+                        }
+
+                        const statusEl = contentDiv.querySelector('#sheetIDConfirmationStatusMessage');
+                        statusEl.innerHTML = '<span style="color: #007BFF;">⏳ 시트 ID를 확인하고 있습니다...</span>';
+
                         sheetId = contentDiv.querySelector('#sheetIdInput').value.trim() || storedSheetId;
                         if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
                             alert('시트 ID를 입력해주세요.');
-                            return;
+                            container.classList.remove('is-loading');
                         }
-                        GM_setValue('spreadsheetId', sheetId);
-                        this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
-                        currentStep = 'GettingLastKnownRecord';
-                        updateContent();
+                        else {
+                            GM_setValue('spreadsheetId', sheetId);
+                            this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
+                            if (event.target.id === 'autoProcessBtn') {
+                                autoProcess = true;
+                                this.#log('ModalManager', '자동 처리 옵션이 활성화되었습니다. 가능한 경우 수동 확인 단계를 건너뜁니다.');
+                            }
+                            this.#eventHandlers.getLastKnownRecord(sheetId).then(result => {
+                                lastKnownRecord = result.lastKnownRecord;
+                                this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length == 0 ? '없음' : lastKnownRecord}`);
+                                if (lastKnownRecord.length == 0) {
+                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 새로운 시트를 생성합니다.</span>';
+                                    currentStep = 'CreateSheetConfirmation';
+                                    setTimeout(() => {
+                                        updateContent();
+                                    }, 1000);
+                                }
+                                else if (autoProcess) {
+                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 자동으로 처리합니다.</span>';
+                                    currentStep = 'Parsing';
+                                    setTimeout(() => {
+                                        updateContent();
+                                    }, 1000);
+                                }
+                                else {
+                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다!</span>';
+                                    currentStep = 'ExportConfirmation';
+                                    setTimeout(() => {
+                                        updateContent();
+                                    }, 1000);
+                                }
+                            }).catch(err => {
+                                this.#log('ModalManager', `시트 ID 확인 중 오류 발생: ${err.message || err}`);
+                                statusEl.innerHTML = `<span style="color: #dc3545;">⚠️ 시트 ID 확인 중 오류 발생: ${err.message || err}</span>`;
+                                container.classList.remove('is-loading');
+                            });
+                        }
                     }
                     else if (event.target && event.target.id === 'sheetIdCancelBtn') {
-                        this.hideExportBanListModal()
-                    }
-                };
-            }
-            else if (currentStep === 'GettingLastKnownRecord') {
-                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep,
-                    sheetId: storedSheetId,
-                });
-                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
-                    currentStep,
-                })
-                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
-                footer.style.display = 'none';
-                this.#log('ModalManager', 'Entered GettingLastKnownRecord step of the export ban list modal.');
-
-                this.#eventHandlers.getLastKnownRecord(sheetId).then(result => {
-                    lastKnownRecord = result.lastKnownRecord;
-                    this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length == 0 ? '없음' : lastKnownRecord}`);
-                    if (lastKnownRecord.length == 0) {
-                        currentStep = 'CreateSheetConfirmation';
-                        updateContent();
-                    }
-                    else {
                         currentStep = 'OAuthConfirmation';
                         updateContent();
                     }
-                }).catch(err => {
-                    console.error('[DC-BanList] 기존 데이터 확인 중 오류 발생:', err);
-                    currentStep = 'SheetIdConfirmation';
-                    resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
-                    this.#eventHandlers.log(`[DC-BanList] 기존 데이터 확인 중 오류 발생: ${resultMessage}`);
-                    updateContent();
-                });
+                };
             }
             else if (currentStep === 'CreateSheetConfirmation') {
                 banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
@@ -368,34 +463,17 @@ class ModalManager {
 
                 contentDiv.onclick = (event) => {
                     if (event.target && event.target.id === 'createSheetConfirmBtn') {
-                        currentStep = 'OAuthConfirmation';
+                        if (autoProcess) {
+                            currentStep = 'Parsing';
+                        }
+                        else {
+                            currentStep = 'ExportConfirmation';
+                        }
                         updateContent();
                     }
                     else if (event.target && event.target.id === 'createSheetCancelBtn') {
                         currentStep = 'SheetIdConfirmation';
                         updateContent();
-                    }
-                };
-            }
-            else if (currentStep === 'OAuthConfirmation') {
-                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep,
-                    sheetId: storedSheetId,
-                });
-                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
-                    currentStep,
-                })
-                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
-                footer.style.display = 'none';
-                this.#log('ModalManager', 'Entered OAuthConfirmation step of the export ban list modal.');
-
-                contentDiv.onclick = (event) => {
-                    if (event.target && event.target.id === 'oauthConfirmBtn') {
-                        currentStep = 'ExportConfirmation';
-                        updateContent();
-                    }
-                    else if (event.target && event.target.id === 'oauthCancelBtn') {
-                        this.hideExportBanListModal();
                     }
                 };
             }
@@ -416,7 +494,8 @@ class ModalManager {
                         updateContent();
                     }
                     else if (event.target && event.target.id === 'parseCancelBtn') {
-                        this.hideExportBanListModal();
+                        currentStep = 'SheetIdConfirmation';
+                        updateContent();
                     }
                 };
             }
@@ -439,12 +518,17 @@ class ModalManager {
                         currentStep: 'Parsing',
                         progressText: progressText,
                     });
-                }).then(result => {
+                }, lastKnownRecord).then(result => {
                     banList = result;
                     if (banList.length === 0) {
                         currentStep = 'UploadComplete';
                         resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
                         this.#log('ModalManager', 'No new ban list found, skipping upload.');
+                        updateContent();
+                    }
+                    else if (autoProcess) {
+                        currentStep = 'UploadInProgress';
+                        this.#log('ModalManager', `Found ${banList.length} new ban list entries, automatically proceeding to upload.`);
                         updateContent();
                     }
                     else {
@@ -903,18 +987,32 @@ class UIManager {
         } = state;
 
         let innerHTML = '';
-        if (currentStep === 'SheetIdConfirmation') {
+        if (currentStep === 'OAuthConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="sheetIdConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
+                    <button id="oauthConfirmBtn"
+                        data-state="init"
+                        class="modal-confirm-btn">
+                        승인 완료
+                    </button>
+                    <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
                 </div>
             </div>`;
         }
-        else if (currentStep === 'GettingLastKnownRecord') {
-            innerHTML = ``;
+        else if (currentStep === 'SheetIdConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-footer">
+                <div class="modal-buttons">
+                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
+                    <div class="process-option-buttons">
+                        <button id="manualProcessBtn" class="manual-process-btn">수동 진행</button>
+                        <button id="autoProcessBtn" class="auto-process-btn">자동 진행</button>
+                    </div>
+                    <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
+                </div>
+            </div>`;
         }
         else if (currentStep === 'CreateSheetConfirmation') {
             innerHTML = `
@@ -923,16 +1021,6 @@ class UIManager {
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
                     <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
                     <button id="createSheetCancelBtn" class="modal-cancel-btn">취소</button>
-                </div>
-            </div>`;
-        }
-        else if (currentStep === 'OAuthConfirmation') {
-            innerHTML = `
-            <div class="export-ban-list-modal-footer">
-                <div class="modal-buttons">
-                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="oauthConfirmBtn" class="modal-confirm-btn">권한 인증 완료</button>
-                    <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
                 </div>
             </div>`;
         }
@@ -978,26 +1066,6 @@ class UIManager {
         else if (currentStep === 'UploadInProgress') {
             innerHTML = ``;
         }
-        else if (currentStep === 'NotLoggedInError') {
-            innerHTML = `
-            <div class="export-ban-list-modal-footer">
-                <div class="modal-buttons">
-                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                </div>
-            </div>`;
-        }
-        else if (currentStep === 'OAuthUnauthorizedError') {
-            innerHTML = `
-            <div class="export-ban-list-modal-footer">
-                <div class="modal-buttons">
-                    <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">권한 인증 완료</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
-                </div>
-            </div>`;
-        }
         else if (currentStep === 'SheetAccessDeniedError') {
             innerHTML = `
             <div class="export-ban-list-modal-footer">
@@ -1040,7 +1108,7 @@ class UIManager {
 
     renderBanExportModalContent(state = {}) {
         const {
-            currentStep = 'confirm', // 'confirm' | 'Parsing' | 'ReadyToUpload' | 'done'
+            currentStep = 'confirm',
             progressText = '',
             sheetId = '',
             resultMessage = '',
@@ -1048,26 +1116,40 @@ class UIManager {
         } = state;
 
         let innerHTML = '';
-        if (currentStep === 'SheetIdConfirmation') {
+        if (currentStep === 'OAuthConfirmation') {
+            innerHTML = `
+            <div class="export-ban-list-modal-content">
+                <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
+                <div>GAS를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
+                <a href="#" onclick="window.open(
+                    '${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}',
+                    'popupWindow',
+                    'width=600,height=600,scrollbars=yes,resizable=yes'
+                )" style="font-size: 13px; color: #007BFF;">
+                    GAS 승인 가이드 영상
+                </a>
+                <div id="oauthStatusMessage" style="margin: 10px 0; min-height: 18px; font-size: 13px;">아래 버튼을 클릭하여 진행해주세요.</div>
+                <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
+                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
+                지속적으로 문제 발생시 이곳으로 제보해주세요.
+                </a>
+                <div><br></div>
+            </div>`;
+        }
+        else if (currentStep === 'SheetIdConfirmation') {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">기존 데이터 확인을 위해 시트 ID가 먼저 필요합니다.</div>
                 <div>구글 시트 ID를 입력해주세요.</div>
                 <div style="font-size: 13px; color: gray;">https://docs.google.com/spreadsheets/d/*/~~</div>
                 <div style="font-size: 13px; color: gray;">* 부분 문자열을 입력해주세요.</div>
-                <div style="font-size: 13px; color: gray;">공란일시 이전에 입력한 ID가 적용됩니다.</div>
+                <div style="font-size: 13px; color: gray;">이전에 입력한 ID가 기본값으로 적용됩니다.</div>
                 <div style="font-size: 13px; color: gray;">변경을 원치 않으시면 바로 확인을 눌러주세요.</div>
+                <div id="sheetIDConfirmationStatusMessage" style="margin: 10px 0; min-height: 18px; font-size: 13px;">아래 버튼을 클릭하여 진행해주세요.</div>
                 <div class="sheet-id-input-group">
                     <input type="text" id="sheetIdInput" class="sheet-id-input" 
                         placeholder="${sheetId}"/>
                 </div>
-            </div>`;
-        }
-        else if (currentStep === 'GettingLastKnownRecord') {
-            innerHTML = `
-            <div class="export-ban-list-modal-content">
-                <div>기존 데이터 확인 중입니다...</div>
-                <div><br></div>
             </div>`;
         }
         else if (currentStep === 'CreateSheetConfirmation') {
@@ -1076,26 +1158,6 @@ class UIManager {
                 <div style="font-weight:700; font-size:15px;">새로운 시트로 보이네요!</div>
                 <div>입력하신 시트 ID의 시트에 기존 데이터가 없습니다.</div>
                 <div>새로운 시트로 차단 내역을 업로드하시겠습니까?</div>
-                <div><br></div>
-            </div>`;
-        }
-        else if (currentStep === 'OAuthConfirmation') {
-            innerHTML = `
-            <div class="export-ban-list-modal-content">
-                <div style="font-weight:700; font-size:15px;">Google Apps Script 권한 승인</div>
-                <div>GAS를 사용하려면 OAuth 권한 승인이 필요합니다.</div>
-                <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
-                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
-                    GAS 승인 페이지로 이동
-                </a>
-                <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
-                    GAS 승인 가이드 영상
-                </a>
-                <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
-                <div style="font-size: 13px; color: gray;">지속적으로 문제 발생시 다음 미니갤로 제보해주세요.</div>
-                <a href="https://gall.dcinside.com/mini/mangonote" target="_blank" style="font-size: 13px; color: gray;">
-                https://gall.dcinside.com/mini/mangonote
-                </a>
                 <div><br></div>
             </div>`;
         }
@@ -1168,11 +1230,12 @@ class UIManager {
             innerHTML = `
             <div class="export-ban-list-modal-content">
                 <div style="font-weight:700; font-size:15px;">OAuth 미승인 상태로 감지됨</div>
-                <div>아래 링크를 클릭하여 권한을 확인해주세요.</div>
-                <a href="${this.#config.APPS_SCRIPT_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
-                    GAS 승인 페이지로 이동
-                </a>
-                <a href="${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}" target="_blank" style="font-size: 13px; color: #007BFF;">
+                <div>아래 녹색 버튼을 클릭하여 권한을 확인해주세요.</div>
+                <a href="#" onclick="window.open(
+                    '${this.#config.APPS_SCRIPT_AUTH_DEMONSTRATION_URL}',
+                    'popupWindow',
+                    'width=600,height=600,scrollbars=yes,resizable=yes'
+                )" style="font-size: 13px; color: #007BFF;">
                     GAS 승인 가이드 영상
                 </a>
                 <div style="font-size: 13px; color: gray;">오랜 기간이 지나면 인증이 초기화되었을 가능성이 있습니다.</div>
@@ -1286,7 +1349,7 @@ class DCBanList {
             onShowCommentSearchModal: () => this.#modalManager.showCommentSearchModal(),
             exportCommentList: async (progressCallback, searchTarget, stopController, commentList = [], page = 1, searchPos = '', prevRes = null) => this.exportCommentList(progressCallback, searchTarget, stopController, commentList, page, searchPos, prevRes),
             getTargetNickName: async (searchTarget) => this.getTargetNickName(searchTarget),
-            exportBanList: async (progressCallback) => this.exportBanList(progressCallback),
+            exportBanList: async (progressCallback, lastKnownRecord = null) => this.exportBanList(progressCallback, lastKnownRecord),
             sendToGoogleSheet: async (sheetId, banList) => this.sendToGoogleSheet(sheetId, banList),
             getLastKnownRecord: async (sheetId) => this.getLastKnownRecord(sheetId),
         };
@@ -1359,6 +1422,8 @@ class DCBanList {
                         'X-Requested-With': 'XMLHttpRequest',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                     },
+                    anonymous: false,
+                    fetch: true,
                     onload: resolve,
                     onerror: reject,
                 });
@@ -1369,7 +1434,6 @@ class DCBanList {
             const nickname = doc.querySelector('.nick_name')?.textContent?.trim();
 
             if (!nickname) {
-                // IP 이거나 존재하지 않는 사용자
                 this.#utils.log('Core', '검색 대상의 닉네임을 찾을 수 없음', { searchTarget });
                 return null;
             }
@@ -1382,7 +1446,7 @@ class DCBanList {
         }
     }
 
-    async exportBanList(progressCallback) {
+    async exportBanList(progressCallback, lastKnownRecord = null) {
         const galleryId = galleryParser.galleryId;
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
         const allBanRecords = [];
@@ -1390,8 +1454,6 @@ class DCBanList {
         try {
             const sheetId = GM_getValue('spreadsheetId');
             this.#utils.log('Core', '차단 내역 수집 시작', { galleryId, gallType, sheetId });
-            const result = await this.getLastKnownRecord(sheetId);
-            const lastKnownRecord = result.lastKnownRecord;
 
             const reportProgress = (msg) => {
                 this.#utils.log('Core', msg);
@@ -1448,7 +1510,6 @@ class DCBanList {
                     }
 
                     for (const record of result.parsed) {
-                        // 마지막으로 알려진 기록과 동일한 항목이 나타나면 중단, 빈 배열일 경우 무시
                         if (lastKnownRecord.length != 0 && isSameEntry(record, lastKnownRecord)) {
                             reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.`);
                             shouldStop = true;
@@ -1513,7 +1574,8 @@ class DCBanList {
                             'X-Requested-With': 'XMLHttpRequest',
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                         },
-                        withCredentials: true,
+                        anonymous: false,
+                        fetch: true,
                         onload: resolve,
                         onerror: reject,
                     });
@@ -1596,7 +1658,8 @@ class DCBanList {
                             'X-Requested-With': 'XMLHttpRequest',
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                         },
-                        withCredentials: true,
+                        anonymous: false,
+                        fetch: true,
                         onload: resolve,
                         onerror: reject,
                     });
@@ -1655,7 +1718,8 @@ class DCBanList {
                             galleryId: galleryParser.galleryId,
                             banList,
                         }),
-
+                        anonymous: false,
+                        fetch: true,
                         onload: (res) => {
                             try {
                                 const response = JSON.parse(res.responseText);
@@ -1790,56 +1854,22 @@ class DCBanList {
                     sheetId,
                     galleryId: galleryParser.galleryId,
                 }),
-
+                anonymous: false,
+                fetch: true,
                 onload: (res) => {
                     try {
-                        const contentType = res.responseHeaders?.toLowerCase() || '';
+                        const response = JSON.parse(res.responseText);
+                        if (response.status === 'success') {
+                            this.#utils.log('Core', '마지막 차단 내역 추출 성공', response.lastKnownRecord);
 
-                        if (
-                            res.responseText.trim().startsWith('<!DOCTYPE html') ||
-                            res.responseText.includes('<html') ||
-                            contentType?.includes('text/html')
-                        ) {
-                            const html = res.responseText;
-                            console.warn('[DC-BanList] HTML 응답을 받음:', html);
-                            if (this.isNotLoggedIn(html)) {
-                                const err = new Error('로그인되지 않은 상태로 감지됨');
-                                err.name = 'NotLoggedInError';
-                                console.warn('[DC-BanList] 로그인되지 않은 상태로 감지됨');
-                                reject(err);
-                            }
-                            else if (this.isOAuthUnauthorized(html)) {
-                                const err = new Error('OAuth 미승인 상태로 감지됨');
-                                err.name = 'OAuthUnauthorizedError';
-                                console.warn('[DC-BanList] OAuth 미승인 상태로 감지됨');
-                                reject(err);
-                            }
-                            else if (this.isSheetAccessDenied(html)) {
-                                const err = new Error('시트 접근 권한이 없음');
-                                err.name = 'SheetAccessDeniedError';
-                                console.warn('[DC-BanList] 시트 접근 권한이 없음');
-                                reject(err);
-                            }
-                            else {
-                                const err = new Error('알 수 없는 HTML 응답을 받음');
-                                err.name = 'UnknownHtmlResponseError';
-                                console.warn('[DC-BanList] HTML 응답을 받았지만 상태를 식별하지 못함');
-                                reject(err);
-                            }
-                        }
+                            const lastKnownRecord = response.lastKnownRecord;
+                            resolve({
+                                lastKnownRecord,
+                            });
+                        } 
                         else {
-                            const response = JSON.parse(res.responseText);
-                            if (response.status === 'success') {
-                                this.#utils.log('Core', '마지막 차단 내역 추출 성공', response.lastKnownRecord);
-
-                                const lastKnownRecord = response.lastKnownRecord;
-                                resolve({
-                                    lastKnownRecord,
-                                });
-                            } else {
-                                console.error('데이터 추출 실패:', response.message);
-                                reject(`데이터 추출 실패: ${response.message}`);
-                            }
+                            console.error('[DC-BanList] ', response.message);
+                            reject(`${response.message}`);
                         }
                     } catch (e) {
                         reject(`응답 파싱 실패: ${e}`);
@@ -1847,31 +1877,12 @@ class DCBanList {
                 },
                 onerror: (err) => {
                     console.warn('응답 원문:', err.responseText);
-                    console.error('요청 실패:', err);
+                    console.error('[DC-BanList] 요청 실패:', err);
                     reject(`요청 실패: ${err}`);
                 }
             });
         });
     };
-
-    isNotLoggedIn(html) {
-        return html.includes('현재 파일을 열 수 없습니다.') ||
-            html.includes('<title>페이지를 찾을 수 없음</title>') ||
-            html.includes('drive.google.com/start/apps');
-    }
-
-    isOAuthUnauthorized(html) {
-        return html.includes('DC_BanList_GAS (Unverified)') ||
-            html.includes('권한이 필요합니다') ||
-            html.includes('이 앱은 Google에서 인증되지 않았습니다') ||
-            html.includes('Review Permissions') ||
-            html.includes('Review Permissions');
-    }
-
-    isSheetAccessDenied(html) {
-        return html.includes('요청한 문서를 액세스할 권한이 없습니다.') ||
-            html.includes('You do not have permission to access the requested document');
-    }
 }
 
 class PostParser {
@@ -1933,7 +1944,8 @@ class PostParser {
                     'X-Requested-With': 'XMLHttpRequest',
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
                 },
-                withCredentials: true,
+                anonymous: false,
+                fetch: true,
                 onload: (res) => resolve(res),
                 onerror: (err) => reject(err)
             });
