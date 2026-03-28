@@ -109,11 +109,6 @@ function handleGetLastKnownRecord(e) {
         Logger.log("handleGetLastKnownRecord called");
         Logger.log("갤ID: " + galleryId);
 
-        if (!sheetId || !galleryId) {
-            throw new Error('There is an empty data')
-        }
-
-        // 스프레드시트 열기 시도 및 유효성 검사
         let spreadsheet;
         try {
             spreadsheet = SpreadsheetApp.openById(sheetId);
@@ -121,46 +116,50 @@ function handleGetLastKnownRecord(e) {
             throw new Error('유효하지 않은 스프레드시트 ID입니다.');
         }
 
-        let sheet = spreadsheet.getSheetByName(galleryId);
-        if (!sheet) {
-            // 시트가 없으면 빈 데이터 반환 (에러 던지지 않음)
-            return ContentService.createTextOutput(
-                JSON.stringify({
-                    status: 'success',
-                    lastKnownRecord: []
-                })
-            ).setMimeType(ContentService.MimeType.JSON);
+        const file = DriveApp.getFileById(sheetId);
+        const access = file.getAccess(Session.getActiveUser);
+        if (access !== DriveApp.Access.OWNER && access !== DriveApp.Access.EDIT) {
+            throw new Error('스프레드시트에 대한 편집 권한이 없습니다.');
         }
-
-        // 시트의 2행 데이터 가져오기
-        const row = sheet.getRange(2, 1, 1, 7).getValues();
-        if (row.length === 0 || row[0].length === 0) {
-            // 데이터가 없으면 빈 데이터 반환
-            return ContentService.createTextOutput(
-                JSON.stringify({
-                    status: 'success',
-                    lastKnownRecord: []
-                })
-            ).setMimeType(ContentService.MimeType.JSON);
-        }
-
-        Logger.log("가져온 데이터: " + JSON.stringify(row));
-
-        //row 반환
-        return ContentService.createTextOutput(
-            JSON.stringify({
-                status: 'success',
-                lastKnownRecord: {
-                    nickname: row[0][0] || '',
-                    identifier: row[0][1] || '',
-                    content: row[0][2] || '',
-                    reason: row[0][3] || '',
-                    duration: row[0][4] || '',
-                    dateTime: row[0][5] || '',
-                    manager: row[0][6] || ''
+        else {
+            let sheet = spreadsheet.getSheetByName(galleryId);
+            if (!sheet) {
+                return ContentService.createTextOutput(
+                    JSON.stringify({
+                        status: 'success',
+                        lastKnownRecord: []
+                    })
+                ).setMimeType(ContentService.MimeType.JSON);
+            }
+            else {
+                const row = sheet.getRange(2, 1, 1, 7).getValues();
+                if (row.length === 0 || row[0].length === 0) {
+                    return ContentService.createTextOutput(
+                        JSON.stringify({
+                            status: 'success',
+                            lastKnownRecord: []
+                        })
+                    ).setMimeType(ContentService.MimeType.JSON);
                 }
-            })
-        ).setMimeType(ContentService.MimeType.JSON);
+                else {
+                    Logger.log("가져온 데이터: " + JSON.stringify(row));
+                    return ContentService.createTextOutput(
+                        JSON.stringify({
+                            status: 'success',
+                            lastKnownRecord: {
+                                nickname: row[0][0] || '',
+                                identifier: row[0][1] || '',
+                                content: row[0][2] || '',
+                                reason: row[0][3] || '',
+                                duration: row[0][4] || '',
+                                dateTime: row[0][5] || '',
+                                manager: row[0][6] || ''
+                            }
+                        })
+                    ).setMimeType(ContentService.MimeType.JSON);
+                }
+            }
+        }
     }
     catch (err) {
         return ContentService.createTextOutput(
