@@ -183,7 +183,8 @@
     border-color: #ccc;
 }
 
-.dcBanList-light-theme .modal-confirm-btn {
+.dcBanList-light-theme .modal-confirm-btn,
+.dcBanList-light-theme .manual-process-btn {
     background-color: #007bff;
     color: #fff;
 }
@@ -214,7 +215,8 @@
     border-color: #555;
 }
 
-.dcBanList-dark-theme .modal-confirm-btn {
+.dcBanList-dark-theme .modal-confirm-btn,
+.dcBanList-dark-theme .manual-process-btn {
     background-color: #0d6efd;
     color: #fff;
 }
@@ -235,6 +237,13 @@
 .dcBanList-dark-theme .auto-process-btn {
     background-color: #238636;
     color: #fff;
+}
+
+.modal-confirm-btn.is-loading,
+.process-option-buttons.is-loading {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 #___EXPORT_BAN_LIST_MODAL_ID___ {
@@ -370,6 +379,7 @@
 .modal-cancel-btn,
 .copy-logs-btn,
 .oauth-redirect-btn,
+.manual-process-btn,
 .auto-process-btn {
     padding: 8px 16px;
     border: none;
@@ -383,7 +393,8 @@
     margin-right: auto;
 }
 
-.dcBanList-light-theme .modal-confirm-btn:hover {
+.dcBanList-light-theme .modal-confirm-btn:hover,
+.dcBanList-light-theme .manual-process-btn:hover {
     background-color: #0056b3;
 }
 
@@ -400,7 +411,8 @@
     background-color: #16692c;
 }
 
-.dcBanList-dark-theme .modal-confirm-btn:hover {
+.dcBanList-dark-theme .modal-confirm-btn:hover,
+.dcBanList-dark-theme .manual-process-btn:hover {
     background-color: #0b5ed7;
 }
 
