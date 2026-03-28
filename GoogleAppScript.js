@@ -113,6 +113,18 @@ function handleGetLastKnownRecord(e) {
             throw new Error('유효하지 않은 스프레드시트 ID입니다.');
         }
 
+        try {
+            const tempSheet = spreadsheet.insertSheet('AUTH_TEST_' + new Date().getTime());
+            spreadsheet.deleteSheet(tempSheet);
+        } catch (err) {
+            return ContentService.createTextOutput(
+                JSON.stringify({
+                    status: 'error',
+                    message: '스프레드시트에 대한 "편집자" 권한이 없습니다. 공유 설정을 확인해주세요.'
+                })
+            ).setMimeType(ContentService.MimeType.JSON);
+        }
+
         let sheet = spreadsheet.getSheetByName(galleryId);
         if (!sheet) {
             return ContentService.createTextOutput(
