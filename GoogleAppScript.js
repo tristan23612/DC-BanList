@@ -5,6 +5,8 @@
 
 // Visit https://script.google.com/ to create an own new project and paste this code.
 
+const headers = ['닉네임', '식별코드', '게시글 / 댓글', '사유', '기간', '처리날짜', '처리자', '비고'];
+
 function doPost(e) {
     const action = JSON.parse(e.postData.contents).action;
     if (action === 'uploadToGoogleSheet') {
@@ -57,7 +59,6 @@ function uploadToGoogleSheet(e) {
             sheet = spreadsheet.insertSheet(galleryId);
         }
 
-        const headers = ['닉네임', '식별코드', '게시글 / 댓글', '사유', '기간', '처리날짜', '처리자'];
         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
         sheet.getRange(1, 1, 1, headers.length).setBackground('#3b4890');
         sheet.getRange(1, 1, 1, headers.length).setFontColor('white')
@@ -66,10 +67,8 @@ function uploadToGoogleSheet(e) {
         Logger.log("갤ID: " + galleryId);
         Logger.log("데이터 길이: " + banList.length);
 
-        // 헤더 아래에 삽입
         sheet.insertRowsBefore(2, banList.length);
 
-        // 배열 형태로 변환
         const rows = banList.map(record => [
             record.nickname || '',
             record.identifier || '',
@@ -80,10 +79,8 @@ function uploadToGoogleSheet(e) {
             record.manager || ''
         ]);
 
-        // 시트 (1,1) 위치부터 입력
         sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
 
-        // 모든 데이터 보호
         protectAllData(sheet);
 
         return ContentService.createTextOutput(
@@ -116,14 +113,18 @@ function handleGetLastKnownRecord(e) {
             throw new Error('유효하지 않은 스프레드시트 ID입니다.');
         }
 
-        const file = DriveApp.getFileById(sheetId);
-        const access = file.getAccess(Session.getActiveUser);
-        if (access !== DriveApp.Access.OWNER && access !== DriveApp.Access.EDIT) {
-            throw new Error('스프레드시트에 대한 편집 권한이 없습니다.');
+        let sheet = spreadsheet.getSheetByName(galleryId);
+        if (!sheet) {
+            return ContentService.createTextOutput(
+                JSON.stringify({
+                    status: 'success',
+                    lastKnownRecord: null
+                })
+            ).setMimeType(ContentService.MimeType.JSON);
         }
         else {
-            let sheet = spreadsheet.getSheetByName(galleryId);
-            if (!sheet) {
+            const row = sheet.getRange(2, 1, 1, sheet.getLastColumn()).getValues();
+            if (row.length === 0 || row[0].length === 0) {
                 return ContentService.createTextOutput(
                     JSON.stringify({
                         status: 'success',
@@ -132,32 +133,21 @@ function handleGetLastKnownRecord(e) {
                 ).setMimeType(ContentService.MimeType.JSON);
             }
             else {
-                const row = sheet.getRange(2, 1, 1, 7).getValues();
-                if (row.length === 0 || row[0].length === 0) {
-                    return ContentService.createTextOutput(
-                        JSON.stringify({
-                            status: 'success',
-                            lastKnownRecord: []
-                        })
-                    ).setMimeType(ContentService.MimeType.JSON);
-                }
-                else {
-                    Logger.log("가져온 데이터: " + JSON.stringify(row));
-                    return ContentService.createTextOutput(
-                        JSON.stringify({
-                            status: 'success',
-                            lastKnownRecord: {
-                                nickname: row[0][0] || '',
-                                identifier: row[0][1] || '',
-                                content: row[0][2] || '',
-                                reason: row[0][3] || '',
-                                duration: row[0][4] || '',
-                                dateTime: row[0][5] || '',
-                                manager: row[0][6] || ''
-                            }
-                        })
-                    ).setMimeType(ContentService.MimeType.JSON);
-                }
+                Logger.log("가져온 데이터: " + JSON.stringify(row));
+                return ContentService.createTextOutput(
+                    JSON.stringify({
+                        status: 'success',
+                        lastKnownRecord: {
+                            nickname: row[0][0] || '',
+                            identifier: row[0][1] || '',
+                            content: row[0][2] || '',
+                            reason: row[0][3] || '',
+                            duration: row[0][4] || '',
+                            dateTime: row[0][5] || '',
+                            manager: row[0][6] || ''
+                        }
+                    })
+                ).setMimeType(ContentService.MimeType.JSON);
             }
         }
     }
@@ -171,15 +161,12 @@ function handleGetLastKnownRecord(e) {
     }
 }
 
-// 모든 데이터 보호 함수
 function protectAllData(sheet) {
-    // 기존 보호 해제
     const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
     for (let protection of protections) {
         protection.remove();
     }
 
-    // 시트 전체 보호
     const protection = sheet.protect();
     protection.setDescription('Sheet Protection');
     protection.setWarningOnly(true);
