@@ -1,6 +1,7 @@
 # 디시인사이드 차단 내역 아카이빙 스크립트
 
 디시인사이드 갤러리 매니저 권한으로 마스킹이 제거된 차단 내역을 구글 스프레드 시트에 업로드 합니다.
+Tampermonkey를 기반으로 합니다. 확장 프로그램 설치 후 아래 링크를 눌러주세요.
 - [설치 링크](https://github.com/tristan23612/DC-BanList/releases/latest/download/DC_BanList.user.js)
 
 # Reference
