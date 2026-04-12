@@ -12,8 +12,12 @@
       {
         "assets": [
           {
-            "path": "DC_BanList.js",
-            "label": "DC_BanList.js"
+            "path": "DC_BanList.user.js",
+            "label": "DC_BanList.user.js"
+          },
+          {
+            "path": "DC_BanList.meta.js",
+            "label": "DC_BanList.meta.js"
           }
         ]
       }
