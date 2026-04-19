@@ -174,12 +174,20 @@ function handleGetLastKnownRecord(e) {
 }
 
 function protectAllData(sheet) {
-    const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
-    for (let protection of protections) {
-        protection.remove();
+    const sheetProtections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+    for (let sheetProtection of sheetProtections) {
+        sheetProtection.remove();
+    }
+    const rangeProtections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+    for (let rangeProtection of rangeProtections) {
+        rangeProtection.remove();
     }
 
-    const protection = sheet.protect();
-    protection.setDescription('Sheet Protection');
-    protection.setWarningOnly(true);
+    const sheetProtection = sheet.protect().setDescription('전체 보호 (관리자 전용)');
+    const ownerEmail = sheet.getParent().getOwner().getEmail();
+    sheetProtection.removeEditors(sheetProtection.getEditors());
+    sheetProtection.addEditors([ownerEmail]);
+
+    const freeRange = sheet.getRange(2, sheet.getLastColumn(), sheet.getMaxRows() - 1, 1);
+    sheetProtection.setUnprotectedRanges([freeRange]);
 }
