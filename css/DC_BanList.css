@@ -205,6 +205,7 @@
 .dcBanList-light-theme .auto-process-btn {
     background-color: #1a7f37;
     color: #fff;
+    border: 1px solid #16692c;
 }
 
 .dcBanList-dark-theme #___EXPORT_BAN_LIST_MODAL_ID___ .sheet-id-input {
@@ -237,6 +238,7 @@
 .dcBanList-dark-theme .auto-process-btn {
     background-color: #238636;
     color: #fff;
+    border: 1px solid #1a5e2c;
 }
 
 .modal-confirm-btn.is-loading,
