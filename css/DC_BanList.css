@@ -251,7 +251,7 @@
 }
 
 #___EXPORT_BAN_LIST_MODAL_ID___ {
-    max-width: 420px;
+    max-width: 500px;
     z-index: 22001;
 }
 
@@ -299,7 +299,7 @@
 }
 
 #___COMMENT_SEARCH_MODAL_ID___ {
-    max-width: 420px;
+    max-width: 500px;
     z-index: 22002;
 }
 
@@ -370,6 +370,7 @@
     position: relative;
     padding-left: 2em;
     text-align: left;
+    overflow-wrap: anywhere;
 }
 
 .modal-buttons {
