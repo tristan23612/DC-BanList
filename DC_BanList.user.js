@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.7.2-release
+// @version          1.7.3-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -1369,14 +1369,14 @@ class DCBanList {
 
             while (stopController && !stopController.stop) {
                 page++;
-                reportProgress(`페이지 ${page} 요청 중...\n누적 ${commentList.length}건`, commentList);
+                reportProgress(`페이지 ${page} 요청 중...<br>누적 ${commentList.length}건`, commentList);
 
                 let result;
                 try {
                     result = await this.fetchCommentsPage(galleryId, gallType, searchTarget, page, searchPos, prevRes);
                 }
                 catch (err) {
-                    reportProgress(`페이지 ${page} 요청 중 오류 발생, 재시도합니다.\n${err.message}\n누적 ${commentList.length}건`, commentList);
+                    reportProgress(`페이지 ${page} 요청 중 오류 발생, 재시도합니다.<br>${err.message}<br>누적 ${commentList.length}건`, commentList);
                     await this.#utils.sleep(this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_DELAY_MS);
                     continue;
                 }
@@ -1386,12 +1386,12 @@ class DCBanList {
                 prevRes = result.response;
 
                 if (result.status === 'end') {
-                    reportProgress(`페이지 ${page}에 더 이상 댓글이 없습니다. 검색 종료.\n누적 ${commentList.length}건`, commentList);
+                    reportProgress(`페이지 ${page}에 더 이상 댓글이 없습니다. 검색 종료.<br>누적 ${commentList.length}건`, commentList);
                     break;
                 }
 
                 commentList.push(...fetchedComments);
-                reportProgress(`페이지 ${page} 처리 완료\n누적 ${commentList.length}건`, commentList);
+                reportProgress(`페이지 ${page} 처리 완료<br>누적 ${commentList.length}건`, commentList);
                 await this.#utils.sleep(this.#config.CONSTANTS.COMMENT_SEARCH_FETCH_DELAY_MS);
             }
 
@@ -1486,7 +1486,7 @@ class DCBanList {
                 catch (err) {
                     if (err.name === 'PermissionError') throw err;
 
-                    reportProgress(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.\n${err.message}\n누적 ${allBanRecords.length}건`);
+                    reportProgress(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.<br>${err.message}<br>누적 ${allBanRecords.length}건`);
                     i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE;
                     continue;
                 }
@@ -1510,7 +1510,7 @@ class DCBanList {
 
                     for (const record of result.parsed) {
                         if (lastKnownRecord.length != 0 && isSameEntry(record, lastKnownRecord)) {
-                            reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.\n누적 ${allBanRecords.length}건`);
+                            reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.<br>누적 ${allBanRecords.length}건`);
                             shouldStop = true;
                             break;
                         }
@@ -1519,7 +1519,7 @@ class DCBanList {
 
                     if (shouldStop) break;
 
-                    reportProgress(`페이지 ${result.page} 처리 완료\n누적 ${allBanRecords.length}건`);
+                    reportProgress(`페이지 ${result.page} 처리 완료<br>누적 ${allBanRecords.length}건`);
                 }
 
                 if (shouldStop) {
