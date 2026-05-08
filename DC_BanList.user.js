@@ -1956,7 +1956,7 @@ const urlConfig = JSON.parse(GM_getResourceText('urlConfig'));
 
 const config = {
     DEBUG_MODE: true,
-    COMMENT_SEARCH_ENABLED: false,
+    COMMENT_SEARCH_ENABLED: true,
     ICON_URL: urlConfig.iconUrl,
     APPS_SCRIPT_URL: urlConfig.appsScriptUrl,
     APPS_SCRIPT_AUTH_DEMONSTRATION_URL: urlConfig.appsScriptAuthDemonstrationUrl,
