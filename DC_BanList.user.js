@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.8.4-release
+// @version          1.8.5-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -323,7 +323,10 @@ class ModalManager {
                             }
                         }
                         else {
-                            event.target.classList.add('is-loading');
+                            const container = event.target.closest('.process-buttons');
+                            if (container) {
+                                container.classList.add('is-loading');
+                            }
                             event.target.textContent = '권한 확인 중...';
                             if (statusEl) statusEl.innerHTML = '⏳ 구글 계정 권한을 확인하고 있습니다...';
 
@@ -348,10 +351,11 @@ class ModalManager {
                                 console.log('[DC-BanList] Authentication check response:', resultText);
                                 if (resultText === "AUTH_OK") {
                                     if (statusEl) statusEl.innerHTML = '<span style="color: green;">✅ 인증 확인되었습니다!</span>';
-                                    setTimeout(() => {
-                                        currentStep = 'SheetIdConfirmation';
-                                        updateContent();
-                                    }, 1000);
+
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                                    currentStep = 'SheetIdConfirmation';
+                                    updateContent();
                                 } else {
                                     event.target.dataset.state = 'need-auth';
                                     event.target.textContent = 'GAS 승인';
@@ -368,11 +372,11 @@ class ModalManager {
                                 event.target.textContent = '다시 시도';
                                 if (statusEl) statusEl.innerHTML = '<span style="color: #dc3545;">⚠️ 서버 연결 실패. 네트워크를 확인해주세요.</span>';
                             } finally {
-                                event.target.classList.remove('is-loading');
+                                container.classList.remove('is-loading');
                             }
                         }
                     }
-                    else if (event.target && event.target.id === 'oauthCancelBtn') {
+                    else if (event.target && event.target.id === 'uploadCancelBtn') {
                         this.hideExportBanListModal();
                     }
                 };
@@ -389,9 +393,9 @@ class ModalManager {
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered SheetIdConfirmation step of the export ban list modal.');
 
-                contentDiv.onclick = (event) => {
+                contentDiv.onclick = async (event) => {
                     if (event.target && event.target.id === 'manualProcessBtn' || (event.target && event.target.id === 'autoProcessBtn')) {
-                        const container = event.target.closest('.process-option-buttons');
+                        const container = event.target.closest('.process-buttons');
                         if (container) {
                             container.classList.add('is-loading');
                         }
@@ -403,43 +407,39 @@ class ModalManager {
                         if (!sheetId || sheetId === '시트 ID를 입력해주세요.') {
                             alert('시트 ID를 입력해주세요.');
                             container.classList.remove('is-loading');
+                            return;
                         }
-                        else {
-                            GM_setValue('spreadsheetId', sheetId);
-                            this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
-                            if (event.target.id === 'autoProcessBtn') {
-                                autoProcess = true;
-                                this.#log('ModalManager', '자동 처리 옵션이 활성화되었습니다. 가능한 경우 수동 확인 단계를 건너뜁니다.');
+
+                        GM_setValue('spreadsheetId', sheetId);
+                        this.#log('ModalManager', `차단 내역 내보내기 모달에서 시트 ID를 ${sheetId}로 설정했습니다.`);
+                        if (event.target.id === 'autoProcessBtn') {
+                            autoProcess = true;
+                            this.#log('ModalManager', '자동 처리 옵션이 활성화되었습니다. 가능한 경우 수동 확인 단계를 건너뜁니다.');
+                        }
+
+                        try {
+                            const result = await this.#eventHandlers.getLastKnownRecord(sheetId);
+                            lastKnownRecord = result.lastKnownRecord;
+                            this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length === 0 ? '없음' : lastKnownRecord}`);
+
+                            if (lastKnownRecord.length === 0) {
+                                if (statusEl) statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 새로운 시트를 생성합니다.</span>';
+                                currentStep = 'CreateSheetConfirmation';
+                            } else if (autoProcess) {
+                                if (statusEl) statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 자동으로 처리합니다.</span>';
+                                currentStep = 'Parsing';
+                            } else {
+                                if (statusEl) statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다!</span>';
+                                currentStep = 'ExportConfirmation';
                             }
-                            this.#eventHandlers.getLastKnownRecord(sheetId).then(result => {
-                                lastKnownRecord = result.lastKnownRecord;
-                                this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length == 0 ? '없음' : lastKnownRecord}`);
-                                if (lastKnownRecord.length == 0) {
-                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 새로운 시트를 생성합니다.</span>';
-                                    currentStep = 'CreateSheetConfirmation';
-                                    setTimeout(() => {
-                                        updateContent();
-                                    }, 1000);
-                                }
-                                else if (autoProcess) {
-                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 자동으로 처리합니다.</span>';
-                                    currentStep = 'Parsing';
-                                    setTimeout(() => {
-                                        updateContent();
-                                    }, 1000);
-                                }
-                                else {
-                                    statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다!</span>';
-                                    currentStep = 'ExportConfirmation';
-                                    setTimeout(() => {
-                                        updateContent();
-                                    }, 1000);
-                                }
-                            }).catch(err => {
-                                this.#log('ModalManager', `시트 ID 확인 중 오류 발생: ${err.message || err}`);
-                                statusEl.innerHTML = `<span style="color: #dc3545;">⚠️ 시트 ID 확인 중 오류 발생: ${err.message || err}</span>`;
-                                container.classList.remove('is-loading');
-                            });
+
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            updateContent();
+                        } catch (err) {
+                            this.#log('ModalManager', `시트 ID 확인 중 오류 발생: ${err.message || err}`);
+                            if (statusEl) statusEl.innerHTML = `<span style="color: #dc3545;">⚠️ 시트 ID 확인 중 오류 발생: ${err.message || err}</span>`;
+                        } finally {
+                            container?.classList.remove('is-loading');
                         }
                     }
                     else if (event.target && event.target.id === 'sheetIdCancelBtn') {
@@ -499,69 +499,62 @@ class ModalManager {
                 };
             }
             else if (currentStep === 'Parsing') {
-                let progressText = ''
-                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
-                    currentStep,
-                    progressText
-                });
-                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({
-                    currentStep,
-                })
-                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML
+                let progressText = '';
+                banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({ currentStep, progressText });
+                banExportModalFooterHTML = this.#uiManager.renderBanExportModalFooter({ currentStep });
+
+                contentDiv.innerHTML = banExportModalContentHTML + banExportModalFooterHTML;
                 footer.style.display = 'none';
                 this.#log('ModalManager', 'Entered Parsing step of the export ban list modal.');
 
-                this.#eventHandlers.exportBanList((progressText) => {
-                    banExportModalConetntDiv = contentDiv.querySelector('.export-ban-list-modal-content')
-                    banExportModalConetntDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
-                        currentStep: 'Parsing',
-                        progressText: progressText,
-                    });
-                }, lastKnownRecord).then(result => {
-                    banList = result;
-                    if (banList.length === 0) {
-                        currentStep = 'UploadComplete';
-                        resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
-                        this.#log('ModalManager', 'No new ban list found, skipping upload.');
+                (async () => {
+                    try {
+                        const result = await this.#eventHandlers.exportBanList((progressText) => {
+                            const banExportModalContentDiv = contentDiv.querySelector('.export-ban-list-modal-content');
+                            if (banExportModalContentDiv) {
+                                banExportModalContentDiv.innerHTML = this.#uiManager.renderBanExportModalContent({
+                                    currentStep: 'Parsing',
+                                    progressText
+                                });
+                            }
+                        }, lastKnownRecord);
+
+                        banList = result;
+
+                        if (banList.length === 0) {
+                            currentStep = 'UploadComplete';
+                            resultMessage = '갱신할 차단 내역이 없습니다. 업로드를 건너뜁니다.';
+                            this.#log('ModalManager', 'No new ban list found, skipping upload.');
+                        } else if (autoProcess) {
+                            currentStep = 'UploadInProgress';
+                            this.#log('ModalManager', `Found ${banList.length} new ban list entries, automatically proceeding to upload.`);
+                        } else {
+                            currentStep = 'ReadyToUpload';
+                            this.#log('ModalManager', `Found ${banList.length} new ban list entries, ready to upload.`);
+                        }
+                    } catch (err) {
+                        console.error('[DC-BanList] 수집 중 오류 발생:', err);
+
+                        const errorStepMap = {
+                            PermissionError: 'PermissionError',
+                            NotLoggedInError: 'NotLoggedInError',
+                            OAuthUnauthorizedError: 'OAuthUnauthorizedError',
+                            SheetAccessDeniedError: 'SheetAccessDeniedError'
+                        };
+
+                        currentStep = errorStepMap[err.name] || 'ParseError';
+
+                        if (err.name === 'PermissionError') {
+                            resultMessage = err.message;
+                        } else if (!errorStepMap[err.name]) {
+                            resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
+                            console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', resultMessage);
+                            this.#eventHandlers.log(`[DC-BanList] 차단 내역 수집 중 오류 발생: ${resultMessage}`);
+                        }
+                    } finally {
                         updateContent();
                     }
-                    else if (autoProcess) {
-                        currentStep = 'UploadInProgress';
-                        this.#log('ModalManager', `Found ${banList.length} new ban list entries, automatically proceeding to upload.`);
-                        updateContent();
-                    }
-                    else {
-                        currentStep = 'ReadyToUpload';
-                        this.#log('ModalManager', `Found ${banList.length} new ban list entries, ready to upload.`);
-                        updateContent();
-                    }
-                }).catch(err => {
-                    console.error('[DC-BanList] 수집 중 오류 발생:', err);
-                    if (err.name === 'PermissionError') {
-                        currentStep = 'PermissionError';
-                        resultMessage = err.message;
-                        updateContent();
-                    }
-                    else if (err.name === 'NotLoggedInError') {
-                        currentStep = 'NotLoggedInError';
-                        updateContent();
-                    }
-                    else if (err.name === 'OAuthUnauthorizedError') {
-                        currentStep = 'OAuthUnauthorizedError';
-                        updateContent();
-                    }
-                    else if (err.name === 'SheetAccessDeniedError') {
-                        currentStep = 'SheetAccessDeniedError';
-                        updateContent();
-                    }
-                    else {
-                        currentStep = 'ParseError';
-                        resultMessage = err.message || '알 수 없는 오류가 발생했습니다.';
-                        console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', resultMessage);
-                        this.#eventHandlers.log(`[DC-BanList] 차단 내역 수집 중 오류 발생: ${resultMessage}`);
-                        updateContent();
-                    }
-                });
+                })();
             }
             else if (currentStep === 'ReadyToUpload') {
                 banExportModalContentHTML = this.#uiManager.renderBanExportModalContent({
@@ -598,30 +591,22 @@ class ModalManager {
                 this.#log('ModalManager', 'Entered UploadInProgress step of the export ban list modal.');
 
                 (async () => {
+                    currentStep = 'UploadInProgress';
+                    updateContent();
+
                     try {
                         resultMessage = await this.#eventHandlers.sendToGoogleSheet(sheetId, banList);
-                        currentStep = 'UploadComplete'
+                        currentStep = 'UploadComplete';
+                    } catch (e) {
+                        const errorStepMap = {
+                            NotLoggedInError: 'NotLoggedInError',
+                            OAuthUnauthorizedError: 'OAuthUnauthorizedError',
+                            SheetAccessDeniedError: 'SheetAccessDeniedError'
+                        };
+                        currentStep = errorStepMap[e.name] || 'UploadError';
+                        if (!errorStepMap[e.name]) resultMessage = e.message || '오류 발생';
+                    } finally {
                         updateContent();
-                    }
-                    catch (e) {
-                        resultMessage = e
-                        if (e.name === 'NotLoggedInError') {
-                            currentStep = 'NotLoggedInError';
-                            updateContent();
-                        }
-                        else if (e.name === 'OAuthUnauthorizedError') {
-                            currentStep = 'OAuthUnauthorizedError';
-                            updateContent();
-                        }
-                        else if (e.name === 'SheetAccessDeniedError') {
-                            currentStep = 'SheetAccessDeniedError';
-                            updateContent();
-                        }
-                        else {
-                            currentStep = 'UploadError'
-                            resultMessage = e.message || '알 수 없는 오류가 발생했습니다.';
-                            updateContent();
-                        }
                     }
                 })();
             }
@@ -991,12 +976,14 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="oauthConfirmBtn"
-                        data-state="init"
-                        class="modal-confirm-btn">
-                        승인 완료
-                    </button>
-                    <button id="oauthCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="oauthConfirmBtn"
+                            data-state="init"
+                            class="modal-confirm-btn">
+                            승인 완료
+                        </button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1005,11 +992,13 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <div class="process-option-buttons">
-                        <button id="manualProcessBtn" class="manual-process-btn">수동 진행</button>
-                        <button id="autoProcessBtn" class="auto-process-btn">자동 진행</button>
+                    <div class="process-buttons">
+                        <div class="process-option-buttons">
+                            <button id="manualProcessBtn" class="manual-process-btn">수동 진행</button>
+                            <button id="autoProcessBtn" class="auto-process-btn">자동 진행</button>
+                        </div>
+                        <button id="sheetIdCancelBtn" class="modal-cancel-btn">이전</button>
                     </div>
-                    <button id="sheetIdCancelBtn" class="modal-cancel-btn">취소</button>
                 </div>
             </div>`;
         }
@@ -1018,8 +1007,10 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="createSheetCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="createSheetConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="createSheetCancelBtn" class="modal-cancel-btn">이전</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1028,8 +1019,10 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="parseCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="parseConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="parseCancelBtn" class="modal-cancel-btn">이전</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1049,8 +1042,10 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="uploadConfirmBtn" class="modal-confirm-btn">확인</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1070,8 +1065,10 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="backToSheetIdConfirmationBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1080,8 +1077,10 @@ class UIManager {
             <div class="export-ban-list-modal-footer">
                 <div class="modal-buttons">
                     <button id="copyLogsBtn" class="copy-logs-btn">로그 복사</button>
-                    <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
-                    <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    <div class="process-buttons">
+                        <button id="backToUploadBtn" class="modal-confirm-btn">이전</button>
+                        <button id="uploadCancelBtn" class="modal-cancel-btn">취소</button>
+                    </div>
                 </div>
             </div>`;
         }
@@ -1865,7 +1864,7 @@ class DCBanList {
                             resolve({
                                 lastKnownRecord,
                             });
-                        } 
+                        }
                         else {
                             console.error('[DC-BanList] ', response.message);
                             reject(`${response.message}`);

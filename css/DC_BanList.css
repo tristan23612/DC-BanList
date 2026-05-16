@@ -243,8 +243,7 @@
     border: 1px solid #1a5e2c;
 }
 
-.modal-confirm-btn.is-loading,
-.process-option-buttons.is-loading {
+.process-buttons.is-loading {
     pointer-events: none;
     opacity: 0.5;
     cursor: not-allowed;
@@ -380,6 +379,7 @@
     width: 100%;
 }
 
+.process-buttons,
 .process-option-buttons {
     display: flex;
     gap: inherit;
