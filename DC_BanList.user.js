@@ -419,8 +419,8 @@ class ModalManager {
 
                         try {
                             const result = await this.#eventHandlers.getLastKnownRecord(sheetId);
-                            lastKnownRecord = result.lastKnownRecord;
-                            this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord.length === 0 ? '없음' : lastKnownRecord}`);
+                            lastKnownRecord = result.lastKnownRecord ?? [];
+                            this.#log('ModalManager', `마지막으로 알려진 기록: ${lastKnownRecord?.length === 0 ? '없음' : lastKnownRecord}`);
 
                             if (lastKnownRecord.length === 0) {
                                 if (statusEl) statusEl.innerHTML = '<span style="color: #28a745;">✅ 시트 ID 확인되었습니다! 새로운 시트를 생성합니다.</span>';
@@ -1444,102 +1444,113 @@ class DCBanList {
     async exportBanList(progressCallback, lastKnownRecord = null) {
         const galleryId = galleryParser.galleryId;
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
-        const allBanRecords = [];
+        const banList = [];
 
         try {
-            const sheetId = GM_getValue('spreadsheetId');
-            this.#utils.log('Core', '차단 내역 수집 시작', { galleryId, gallType, sheetId });
+            this.#utils.log('Core', `${isMobile ? '모바일' : 'PC'} 차단 내역 수집 시작`, { galleryId, gallType });
 
             const reportProgress = (msg) => {
                 this.#utils.log('Core', msg);
-                if (typeof progressCallback === 'function') {
-                    progressCallback(msg);
+                if (typeof progressCallback === 'function') progressCallback(msg);
+            };
+
+            const isSameEntry = (a, b) => (
+                a.nickname.toString() === b.nickname.toString() &&
+                a.identifier.toString() === b.identifier.toString() &&
+                a.content === b.content &&
+                a.reason.toString() === b.reason.toString() &&
+                a.duration === b.duration &&
+                a.dateTime === b.dateTime &&
+                a.manager === b.manager
+            );
+
+            // 1. 1페이지 요청 및 공통 fetchBanList 사용
+            const firstResult = await this.fetchBanList(galleryId, gallType, 1);
+            const firstPageList = firstResult.parsedBanList;
+
+            // 2. totalPages 동적 추출 (모바일 / PC DOM 분기)
+            let totalPages = 1;
+            if (firstResult.doc) {
+                if (isMobile) {
+                    const total = parseInt(firstResult.doc.querySelector('#total')?.value || '0', 10);
+                    const slidePage = parseInt(firstResult.doc.querySelector('#slidePage')?.value || '100', 10);
+                    totalPages = Math.ceil(total / slidePage) || 1;
+                } else {
+                    const endLink = firstResult.doc.querySelector('.bottom_paging_box a.page_end');
+                    if (endLink) {
+                        const match = endLink.getAttribute('href')?.match(/[?&]p=(\d+)/);
+                        if (match?.[1]) totalPages = parseInt(match[1], 10);
+                    } else {
+                        const pageNumbers = Array.from(firstResult.doc.querySelectorAll('.bottom_paging_box a'))
+                            .map(a => a.getAttribute('href')?.match(/[?&]p=(\d+)/)?.[1])
+                            .filter(Boolean)
+                            .map(Number);
+                        if (pageNumbers.length > 0) totalPages = Math.max(...pageNumbers);
+                    }
                 }
-            };
+            }
 
-            const isSameEntry = (a, b) => {
-                return (
-                    a.nickname.toString() === b.nickname.toString() &&
-                    a.identifier.toString() === b.identifier.toString() &&
-                    a.content === b.content &&
-                    a.reason.toString() === b.reason.toString() &&
-                    a.duration === b.duration &&
-                    a.dateTime === b.dateTime &&
-                    a.manager === b.manager
-                );
-            };
+            // 3. 1페이지 레코드 데이터 적재 및 중복 검사
+            let shouldStop = false;
+            for (const record of firstPageList) {
+                if (lastKnownRecord && lastKnownRecord.length !== 0 && isSameEntry(record, lastKnownRecord)) {
+                    reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.<br>누적 ${banList.length}건`);
+                    shouldStop = true;
+                    break;
+                }
+                banList.push(record);
+            }
 
-            let consecutiveEmptyPageCount = 0;
+            reportProgress(`페이지 1 처리 완료<br>누적 ${banList.length}건`);
+            if (shouldStop || totalPages <= 1) return banList;
 
-            const makeBatch = (start, size) => Array.from({ length: size }, (_, j) => start + j);
-            for (let i = 1; i <= this.#config.CONSTANTS.MAX_BAN_LIST_PAGES_LIMIT; i += this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE) {
-                const batch = makeBatch(i, this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE);
+            // 4. 2페이지부터 반복 수집 (모바일: batchSize = 1, PC: 설정값 사용)
+            const batchSize = isMobile ? 1 : this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE;
 
-                let results
+            for (let i = 2; i <= totalPages; i += batchSize) {
+                const currentBatchSize = Math.min(batchSize, totalPages - i + 1);
+                const batchPages = Array.from({ length: currentBatchSize }, (_, j) => i + j);
+
+                let results;
                 try {
-                    results = await Promise.all(batch.map(page => this.fetchBanPage(galleryId, gallType, page)));
-                }
-                catch (err) {
+                    results = await Promise.all(
+                        batchPages.map(page => this.fetchBanList(galleryId, gallType, page))
+                    );
+                } catch (err) {
                     if (err.name === 'PermissionError') throw err;
 
-                    reportProgress(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.<br>${err.message}<br>누적 ${allBanRecords.length}건`);
-                    i -= this.#config.CONSTANTS.BAN_LIST_BATCH_SIZE;
+                    reportProgress(`페이지 ${i} 요청 중 오류 발생, 재시도합니다.<br>${err.message}<br>누적 ${banList.length}건`);
+                    i -= batchSize;
+                    await this.#utils.sleep(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS);
                     continue;
                 }
 
-                let shouldStop = false;
-                let foundAnomaly = false;
                 for (const result of results) {
-                    if (result.status === 'empty') {
-                        consecutiveEmptyPageCount++;
-                        if (consecutiveEmptyPageCount > 4) {
+                    for (const record of result.parsedBanList) {
+                        if (lastKnownRecord && lastKnownRecord.length !== 0 && isSameEntry(record, lastKnownRecord)) {
+                            reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.<br>누적 ${banList.length}건`);
                             shouldStop = true;
                             break;
                         }
-                    } else {
-                        if (consecutiveEmptyPageCount > 0) {
-                            foundAnomaly = true;
-                            break;
-                        }
-                        consecutiveEmptyPageCount = 0;
-                    }
-
-                    for (const record of result.parsed) {
-                        if (lastKnownRecord.length != 0 && isSameEntry(record, lastKnownRecord)) {
-                            reportProgress(`중복 데이터 감지됨: 나머지는 건너뜁니다.<br>누적 ${allBanRecords.length}건`);
-                            shouldStop = true;
-                            break;
-                        }
-                        allBanRecords.push(record);
+                        banList.push(record);
                     }
 
                     if (shouldStop) break;
-
-                    reportProgress(`페이지 ${result.page} 처리 완료<br>누적 ${allBanRecords.length}건`);
+                    reportProgress(`페이지 ${result.page} 처리 완료<br>누적 ${banList.length}건`);
                 }
 
-                if (shouldStop) {
-                    reportProgress(`차단 내역 수집 완료 - 총 ${allBanRecords.length}건`);
-                    break;
-                }
-
-                if (foundAnomaly) {
-                    reportProgress(`비정상적인 빈 페이지 감지됨, 다시 시도해주세요.`);
-                    throw new Error(`[DC-BanList] 비정상적인 빈 페이지 감지됨`);
-                }
-
+                if (shouldStop) break;
                 await this.#utils.sleep(this.#config.CONSTANTS.BAN_LIST_FETCH_DELAY_MS);
             }
 
             if (typeof progressCallback === 'function') {
-                progressCallback(`총 ${allBanRecords.length}건 수집 완료`);
+                progressCallback(`총 ${banList.length}건 수집 완료`);
                 await this.#utils.sleep(2000);
             }
 
-            this.#utils.log('Core', '차단 내역 수집 완료', { galleryId, gallType, totalRecords: allBanRecords.length });
-            return allBanRecords;
-        }
-        catch (err) {
+            this.#utils.log('Core', '차단 내역 수집 완료', { galleryId, totalRecords: banList.length });
+            return banList;
+        } catch (err) {
             console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', err);
             throw err;
         }
@@ -1631,17 +1642,23 @@ class DCBanList {
         }
     }
 
-    async fetchBanPage(galleryId, galleryType, page) {
+    async fetchBanList(galleryId, galleryType, page) {
         let baseBanListUrl = '';
         if (galleryType === 'MI') {
-            baseBanListUrl = 'https://gall.dcinside.com/mini/management/block';
+            baseBanListUrl = isMobile
+                ? 'https://m.dcinside.com/management/mini/avoid'
+                : 'https://gall.dcinside.com/mini/management/block';
         } else if (galleryType === 'M') {
-            baseBanListUrl = 'https://gall.dcinside.com/mgallery/management/block';
+            baseBanListUrl = isMobile
+                ? 'https://m.dcinside.com/management/minor/avoid'
+                : 'https://gall.dcinside.com/mgallery/management/block';
         } else {
             throw new Error(`Invalid galleryType: ${galleryType}`);
         }
 
-        const url = `${baseBanListUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
+        const url = isMobile
+            ? `${baseBanListUrl}/${encodeURIComponent(galleryId)}?state=&page=${page}&searchType=&searchValue=`
+            : `${baseBanListUrl}?id=${encodeURIComponent(galleryId)}&p=${page}`;
 
         try {
             const res = await Promise.race([
@@ -1649,10 +1666,6 @@ class DCBanList {
                     GM_xmlhttpRequest({
                         method: 'GET',
                         url,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
-                        },
                         anonymous: false,
                         fetch: true,
                         onload: resolve,
@@ -1664,29 +1677,38 @@ class DCBanList {
                 )
             ]);
 
-            if (!res.responseText.includes('minor_admin')) {
+            const isInvalid = isMobile
+                ? res.responseText.includes('로그인이 필요한 서비스')
+                : (!res.responseText.includes('minor_admin'));
+
+            if (isInvalid) {
                 console.warn(`[DC-BanList] 차단 페이지에서 리디렉션 감지됨`);
                 const err = new Error('차단 페이지 리디렉션 감지됨 - 매니저 권한이 없을 수 있습니다.');
                 err.name = 'PermissionError';
                 throw err;
             }
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(res.responseText, 'text/html');
+
+            const parsedBanList = this.parseBanList(res.responseText);
+
+            if (parsedBanList.length === 0) {
+                return {
+                    status: 'empty',
+                    page,
+                    parsedBanList,
+                    doc,
+                };
+            }
             else {
-                const parsed = this.parseBanList(res.responseText);
-                if (parsed.length === 0) {
-                    return {
-                        status: 'empty',
-                        page,
-                        parsed,
-                    };
-                }
-                else {
-                    this.#utils.log('Core', `${galleryId} 갤러리의 ${page}페이지 차단 내역 파싱 완료.`);
-                    return {
-                        status: 'success',
-                        page,
-                        parsed,
-                    };
-                }
+                this.#utils.log('Core', `${galleryId} 갤러리의 ${page}페이지 차단 내역 파싱 완료.`);
+                return {
+                    status: 'success',
+                    page,
+                    parsedBanList,
+                    doc,
+                };
             }
         } catch (err) {
             throw err;
@@ -1785,53 +1807,85 @@ class DCBanList {
 
     parseBanList(htmlText) {
         const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, 'text/html');
+        const doc = isMobile
+            ? parser.parseFromString(`<ul>${htmlText}</ul>`, 'text/html')
+            : parser.parseFromString(htmlText, 'text/html');
 
-        const rows = Array.from(doc.querySelectorAll('table.minor_block_list tbody tr'));
+        const rows = isMobile
+            ? Array.from(doc.querySelectorAll('li .item'))
+            : Array.from(doc.querySelectorAll('table.minor_block_list tbody tr'));
 
         if (rows.length === 0) {
             return []; // 빈 배열 반환
         }
 
-        const parsedData = rows.map(row => {
-            const cells = row.querySelectorAll('td');
+        const parsePcRow = (row) => {
+            const blockNik = row.querySelector('.blocknik');
+            const blockContent = row.querySelector('.blockcontent');
+            const blockDay = row.querySelector('.blockday');
 
-            // 차단 대상: 닉네임 + 식별자 (닉네임은 두 번째 <p>, 식별자는 네 번째 <p>)
-            const blockNikCell = cells[2];
-            const pTags = Array.from(blockNikCell.querySelectorAll('p'))
+            const pTexts = Array.from(blockNik?.querySelectorAll('p') || [])
                 .map(p => p.textContent.trim())
-                .filter(t => t); // 빈 텍스트 제거
+                .filter(Boolean);
+            const nickname = pTexts[0] || '';
+            const identifier = (pTexts[1] || '').replace(/[()]/g, '');
 
-            const nickname = pTags[0] || '';
-            const identifier = (pTags[1] || '').replace(/[()]/g, '');
+            const type = blockContent?.querySelector('em')?.textContent.trim() || '';
+            const title = blockContent?.querySelector('a')?.textContent.trim() || '';
+            const content = type ? `[${type}] ${title}` : title;
 
-            // 게시글/댓글 내용
-            const content = `[${cells[3]?.querySelector('em')?.textContent.trim() || ''}] ${cells[3]?.querySelector('a')?.textContent.trim() || ''}`;
-
-            // 사유
-            const reason = cells[4]?.textContent.trim() || '';
-
-            // 차단 기간
-            const duration = cells[5]?.textContent.trim() || '';
-
-            // 날짜 + 시간 + 처리자
-            const date = cells[6]?.querySelector('.block_date')?.textContent.trim() || '';
-
-            const time = cells[6]?.querySelector('.block_time')?.textContent.replace('처리 시간 :', '').trim() || '';
-            const managerRaw = cells[6]?.querySelector('.block_conduct')?.textContent || '';
-            const managerMatch = managerRaw.match(/처리자\s*:\s*(.+)/);
-            const manager = managerMatch?.[1]?.trim() || '';
+            const date = blockDay?.querySelector('.block_date')?.textContent.trim() || '';
+            const time = blockDay?.querySelector('.block_time')?.textContent.replace(/처리\s*시간\s*:\s*/, '').trim() || '';
+            const managerRaw = blockDay?.querySelector('.block_conduct')?.textContent || '';
+            const manager = managerRaw.match(/처리자\s*:\s*(.+)/)?.[1]?.trim() || '';
 
             return {
                 nickname,
                 identifier,
                 content,
-                reason,
-                duration,
-                dateTime: `${date} ${time}`,
-                manager,
+                reason: row.querySelector('.blockreason')?.textContent.trim() || '',
+                duration: row.querySelector('.blocktime')?.textContent.trim() || '',
+                dateTime: [date, time].filter(Boolean).join(' '),
+                manager
             };
-        });
+        };
+
+        const parseMobileRow = (row) => {
+            const captions = Array.from(row.querySelectorAll('.mg-block-caption'));
+
+            const headerText = captions[0]?.querySelector('.tit')?.textContent.trim() || '';
+            const ipText = captions[0]?.querySelector('.ip')?.textContent.trim() || '';
+
+            const headerMatch = headerText.match(/^([\s\S]+?)\s*(?:\(([^)]+)\))?$/);
+            const nickname = headerMatch?.[1]?.trim() || '';
+            const identifier = `${headerMatch?.[2]?.trim() || ''} ${ipText}`.trim();
+
+            // 동적 캡션 데이터를 Key-Value Map으로 변환하여 순서 의존성 제거
+            const captionMap = new Map();
+            captions.slice(1).forEach(cap => {
+                const label = cap.querySelector('.tit')?.textContent.trim();
+                const valueEl = cap.querySelector('.txt');
+                if (label && valueEl) captionMap.set(label, valueEl);
+            });
+
+            // 게시글/댓글 라벨 탐색
+            const contentType = captionMap.has('게시글') ? '게시글' : (captionMap.has('댓글') ? '댓글' : '');
+            const contentEl = captionMap.get('게시글') || captionMap.get('댓글');
+            const contentTitle = contentEl?.querySelector('.lnkgo')?.textContent.trim() || contentEl?.textContent.trim() || '';
+            const content = contentType ? `[${contentType}] ${contentTitle}` : contentTitle;
+
+            return {
+                nickname,
+                identifier,
+                content,
+                reason: captionMap.get('사유')?.textContent.trim() || '',
+                duration: captionMap.get('기간')?.textContent.trim() || '',
+                dateTime: captionMap.get('처리 일시')?.textContent.trim() || '',
+                manager: captionMap.get('처리자')?.textContent.trim() || ''
+            };
+        };
+
+        const parsedData = rows.map(isMobile ? parseMobileRow : parsePcRow);
 
         return parsedData;
     }
@@ -1881,40 +1935,24 @@ class DCBanList {
 }
 
 class PostParser {
-    constructor() {
-        this.doc = null
-    }
-
     async init() {
         if (isMobile) {
             this.galleryId = document.querySelector('div.gall-tit-box a').getAttribute('href').split('/')[2];
             this.postNo = this.#_extractPostId(window.location.href, this.galleryId);
 
             if (document.querySelector('span.mgall-tit')) {
-                // 마이너 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/mgallery/board/' + (this.postNo ? 'view/' : 'lists/');
                 this.galleryType = 'mgallery';
             }
             else if (document.querySelector('span.mngall-tit')) {
-                // 미니 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/mini/board/' + (this.postNo ? 'view/' : 'lists/');
                 this.galleryType = 'mini';
             }
             else {
-                // 정식 갤러리
-                this.baseUrl = 'https://gall.dcinside.com/board/' + (this.postNo ? 'view/' : 'lists/');
                 this.galleryType = 'gallery';
             }
-
-            this.pcUrl = `${this.baseUrl}?id=${this.galleryId}` + (this.postNo ? `&no=${this.postNo}` : '');
-
-            await this.#_loadPCDoc(this.pcUrl);
         }
         else {
             this.galleryId = new URLSearchParams(window.location.search).get('id');
             this.galleryType = window.location.href.includes('mgallery') ? 'mgallery' : (window.location.href.includes('mini') ? 'mini' : null);
-            this.baseUrl = window.location.href.split('?')[0].replace(/\/$/, '');
-            this.doc = document; // 기본값은 현재 문서
         }
     }
 
@@ -1922,29 +1960,6 @@ class PostParser {
         const pattern = new RegExp(`/board/${galleryId}/(\\d+)`);
         const match = url.match(pattern);
         return match ? match[1] : null;
-    }
-
-    async #_loadPCDoc(url) {
-        const res = await this.#_fetchHTML(url);
-        const parser = new DOMParser();
-        this.doc = parser.parseFromString(res.responseText, "text/html");
-    }
-
-    async #_fetchHTML(url) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36'
-                },
-                anonymous: false,
-                fetch: true,
-                onload: (res) => resolve(res),
-                onerror: (err) => reject(err)
-            });
-        });
     }
 }
 
