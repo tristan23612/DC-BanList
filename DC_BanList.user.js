@@ -3,7 +3,7 @@
 // @name:ko          디시인사이드 차단 내역 관리
 // @namespace        https://github.com/tristan23612/DC-BanList
 // @author           망고스틴
-// @version          1.9.1-release
+// @version          1.9.2-release
 // @description      디시인사이드 차단 내역 관리
 // @description:ko   디시인사이드 차단 내역 관리
 // @match            https://gall.dcinside.com/*/board/lists*
@@ -1355,9 +1355,9 @@ class DCBanList {
         const gallType = galleryParser.galleryType === 'mgallery' ? 'M' : (galleryParser.galleryType === 'mini' ? 'MI' : '');
 
         try {
-            this.#utils.log('Core', '댓글 검색 시작', { galleryId, gallType, searchTarget });
+            this.#utils.log('exportCommentList', '댓글 검색 시작', { galleryId, gallType, searchTarget });
             const reportProgress = (msg, commentList = []) => {
-                this.#utils.log('Core', msg);
+                this.#utils.log('exportCommentList', msg);
                 if (typeof progressCallback === 'function') {
                     progressCallback(msg, commentList);
                 }
@@ -1408,7 +1408,7 @@ class DCBanList {
         const gallogUrl = 'https://gallog.dcinside.com/' + encodeURIComponent(searchTarget);
 
         try {
-            this.#utils.log('Core', '검색 대상 확인 시작', { searchTarget, gallogUrl });
+            this.#utils.log('getTargetNickName', '검색 대상 확인 시작', { searchTarget, gallogUrl });
             const res = await new Promise((resolve, reject) => {
                 GM_xmlhttpRequest({
                     method: 'GET',
@@ -1429,10 +1429,10 @@ class DCBanList {
             const nickname = doc.querySelector('.nick_name')?.textContent?.trim();
 
             if (!nickname) {
-                this.#utils.log('Core', '검색 대상의 닉네임을 찾을 수 없음', { searchTarget });
+                this.#utils.log('getTargetNickName', '검색 대상의 닉네임을 찾을 수 없음', { searchTarget });
                 return null;
             }
-            this.#utils.log('Core', '검색 대상의 닉네임 확인 완료', { searchTarget, nickname });
+            this.#utils.log('getTargetNickName', '검색 대상의 닉네임 확인 완료', { searchTarget, nickname });
             return nickname;
         }
         catch (err) {
@@ -1447,10 +1447,10 @@ class DCBanList {
         const banList = [];
 
         try {
-            this.#utils.log('Core', `${isMobile ? '모바일' : 'PC'} 차단 내역 수집 시작`, { galleryId, gallType });
+            this.#utils.log('exportBanList', `${isMobile ? '모바일' : 'PC'} 차단 내역 수집 시작`, { galleryId, gallType });
 
             const reportProgress = (msg) => {
-                this.#utils.log('Core', msg);
+                this.#utils.log('exportBanList', msg);
                 if (typeof progressCallback === 'function') progressCallback(msg);
             };
 
@@ -1548,7 +1548,7 @@ class DCBanList {
                 await this.#utils.sleep(2000);
             }
 
-            this.#utils.log('Core', '차단 내역 수집 완료', { galleryId, totalRecords: banList.length });
+            this.#utils.log('exportBanList', '차단 내역 수집 완료', { galleryId, totalRecords: banList.length });
             return banList;
         } catch (err) {
             console.error('[DC-BanList] 차단 내역 수집 중 오류 발생:', err);
@@ -1627,7 +1627,7 @@ class DCBanList {
                     };
                 }
                 else {
-                    this.#utils.log('Core', `${galleryId} 갤러리의 ${target}유저 ${page}페이지 ${searchPos}위치 댓글 파싱 완료.`);
+                    this.#utils.log('fetchCommentsPage', `${galleryId} 갤러리의 ${target}유저 ${page}페이지 ${searchPos}위치 댓글 파싱 완료.`);
                     return {
                         status: 'success',
                         page,
@@ -1702,7 +1702,7 @@ class DCBanList {
                 };
             }
             else {
-                this.#utils.log('Core', `${galleryId} 갤러리의 ${page}페이지 차단 내역 파싱 완료.`);
+                this.#utils.log('fetchBanList', `${galleryId} 갤러리의 ${page}페이지 차단 내역 파싱 완료.`);
                 return {
                     status: 'success',
                     page,
@@ -1718,7 +1718,7 @@ class DCBanList {
     async sendToGoogleSheet(sheetId, banList) {
         try {
             return new Promise((resolve, reject) => {
-                this.#utils.log('Core', `${banList.length}건의 차단 내역을 Google 스프레드시트에 업로드합니다.`);
+                this.#utils.log('sendToGoogleSheet', `${banList.length}건의 차단 내역을 Google 스프레드시트에 업로드합니다.`);
                 if (banList.length === 0) {
                     resolve('갱신할 데이터가 없습니다.');
                 }
@@ -1743,7 +1743,7 @@ class DCBanList {
                                 if (response.status === 'success') {
                                     // 업로드된 데이터의 개수를 포함한 메시지 반환
                                     const message = `Google 스프레드시트에 ${banList.length}건의 차단 내역 업로드 성공`;
-                                    this.#utils.log(`Core`, message);
+                                    this.#utils.log(`sendToGoogleSheet`, message);
                                     resolve(message);
                                 }
                                 else {
@@ -1909,7 +1909,7 @@ class DCBanList {
                     try {
                         const response = JSON.parse(res.responseText);
                         if (response.status === 'success') {
-                            this.#utils.log('Core', '마지막 차단 내역 추출 성공', response.lastKnownRecord);
+                            this.#utils.log('getLastKnownRecord', '마지막 차단 내역 추출 성공', response.lastKnownRecord);
 
                             const lastKnownRecord = response.lastKnownRecord;
                             resolve({
